@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Settings2, RefreshCw } from 'lucide-react';
+import { Download, Settings2, RefreshCw, Trash2 } from 'lucide-react';
 import ExcelUpload from '@/components/ExcelUpload';
 import StatCards from '@/components/StatCards';
 import GanttChart from '@/components/GanttChart';
@@ -51,6 +51,14 @@ export default function Home() {
     exportToExcel(productionItems);
   };
 
+  // 데이터 삭제 (초기화)
+  const handleClear = () => {
+    if (confirm('업로드한 데이터를 삭제하시겠습니까?')) {
+      setProductionItems([]);
+      setProductionPlans([]);
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {/* 헤더 */}
@@ -64,6 +72,13 @@ export default function Home() {
             <div className="flex items-center gap-3">
               {productionItems.length > 0 && (
                 <>
+                  <button
+                    onClick={handleClear}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    삭제
+                  </button>
                   <button
                     onClick={handleReAllocate}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
