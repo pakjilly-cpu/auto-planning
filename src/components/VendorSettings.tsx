@@ -60,7 +60,7 @@ export default function VendorSettings() {
             </tr>
           </thead>
           <tbody>
-            {vendors.map((vendor) => (
+            {vendors.map((vendor: Vendor) => (
               <tr key={vendor.id} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="py-3 px-2">
                   <span className="font-medium">{vendor.name}</span>

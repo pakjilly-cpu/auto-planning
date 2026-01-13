@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { vendorNameMap } from '@/data/defaults';
+import { Vendor, ClientVendorMapping } from '@/lib/types';
 
 export default function ClientMapping() {
   const { clientMappings, addClientMapping, removeClientMapping, vendors } = useAppStore();
@@ -75,7 +76,7 @@ export default function ClientMapping() {
               className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">외주처 선택</option>
-              {vendors.map((v) => (
+              {vendors.map((v: Vendor) => (
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
             </select>
@@ -95,7 +96,7 @@ export default function ClientMapping() {
         )}
         
         {/* 기존 매칭 목록 */}
-        {clientMappings.map((mapping) => (
+        {clientMappings.map((mapping: ClientVendorMapping) => (
           <div
             key={mapping.clientCode}
             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -110,7 +111,7 @@ export default function ClientMapping() {
                   onChange={(e) => setEditVendor(e.target.value)}
                   className="flex-1 mx-2 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {vendors.map((v) => (
+                  {vendors.map((v: Vendor) => (
                     <option key={v.id} value={v.id}>{v.name}</option>
                   ))}
                 </select>

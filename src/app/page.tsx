@@ -29,7 +29,7 @@ export default function Home() {
     if (productionItems.length === 0) return;
     
     // 모든 외주처 배정 초기화
-    const resetItems = productionItems.map(item => ({
+    const resetItems = productionItems.map((item: typeof productionItems[number]) => ({
       ...item,
       assignedVendor: undefined,
     }));

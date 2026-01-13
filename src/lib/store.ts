@@ -3,6 +3,14 @@ import { persist } from 'zustand/middleware';
 import { Vendor, ClientVendorMapping, ProductionItem, ProductionPlan } from './types';
 import { defaultVendors, defaultClientMappings } from '@/data/defaults';
 
+// 수기 고정된 배치 정보
+export interface FixedPlacement {
+  productCode: string;
+  vendorName: string;
+  lineNumber: number;
+  dateKey: string; // yyyy-MM-dd
+}
+
 interface AppState {
   // 외주처 데이터
   vendors: Vendor[];
@@ -30,6 +38,13 @@ interface AppState {
   // UI 상태
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+  
+  // 수기 고정 배치
+  fixedPlacements: FixedPlacement[];
+  setFixedPlacement: (placement: FixedPlacement) => void;
+  removeFixedPlacement: (productCode: string) => void;
+  clearFixedPlacements: () => void;
+  getFixedPlacement: (productCode: string) => FixedPlacement | undefined;
 }
 
 export const useAppStore = create<AppState>()(
@@ -79,12 +94,30 @@ export const useAppStore = create<AppState>()(
       // UI 상태
       isLoading: false,
       setIsLoading: (loading) => set({ isLoading: loading }),
+      
+      // 수기 고정 배치
+      fixedPlacements: [],
+      setFixedPlacement: (placement) =>
+        set((state) => ({
+          fixedPlacements: [
+            ...state.fixedPlacements.filter(p => p.productCode !== placement.productCode),
+            placement,
+          ],
+        })),
+      removeFixedPlacement: (productCode) =>
+        set((state) => ({
+          fixedPlacements: state.fixedPlacements.filter((p: FixedPlacement) => p.productCode !== productCode),
+        })),
+      clearFixedPlacements: () => set({ fixedPlacements: [] }),
+      // getFixedPlacement는 selector로 사용: useAppStore(state => state.fixedPlacements.find(p => p.productCode === code))
+      getFixedPlacement: () => undefined,
     }),
     {
       name: 'auto-planning-storage',
       partialize: (state) => ({
         vendors: state.vendors,
         clientMappings: state.clientMappings,
+        fixedPlacements: state.fixedPlacements,
       }),
     }
   )

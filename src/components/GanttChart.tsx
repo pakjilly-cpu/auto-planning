@@ -1,11 +1,33 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, isToday, addDays, isWeekend } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { useAppStore } from '@/lib/store';
-import { ProductionItem } from '@/lib/types';
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, GripVertical, Check } from 'lucide-react';
+import { useAppStore, FixedPlacement } from '@/lib/store';
+import { ProductionItem, Vendor } from '@/lib/types';
+
+// 드래그 중인 아이템 정보
+interface DragItem {
+  item: ProductionItem;
+  sourceVendor: string;
+  sourceLine: number;
+  sourceDate: string;
+}
+
+// 드롭 대상 정보
+interface DropTarget {
+  vendorName: string;
+  lineNumber: number;
+  dateKey: string;
+}
+
+// 보류 중인 변경사항
+interface PendingChange {
+  item: ProductionItem;
+  from: { vendor: string; line: number; date: string };
+  to: { vendor: string; line: number; date: string };
+}
 
 // 외주처별 색상
 const vendorColors: Record<string, string> = {
@@ -89,9 +111,43 @@ const ZOOM_LEVELS = [50, 75, 100, 125, 150];
 
 export default function GanttChart() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { productionItems, selectedMonth, setSelectedMonth, vendors } = useAppStore();
+  const { 
+    productionItems, 
+    selectedMonth: rawSelectedMonth, 
+    setSelectedMonth, 
+    vendors,
+    fixedPlacements,
+    setFixedPlacement,
+  } = useAppStore();
+  
+  // selectedMonth가 문자열일 수 있으므로 Date로 변환
+  const selectedMonth = rawSelectedMonth instanceof Date ? rawSelectedMonth : new Date(rawSelectedMonth);
   const [selectedItem, setSelectedItem] = useState<ProductionItem | null>(null);
   const [zoomLevel, setZoomLevel] = useState(100);
+  
+  // 드래그 앤 드롭 상태
+  const [dragItem, setDragItem] = useState<DragItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
+  
+  // 일별 생산 품목 (CAPA 반영)
+  interface DailyItem {
+    item: ProductionItem;
+    dailyQty: number;  // 해당 날짜에 생산할 수량
+    dayNumber: number; // 몇 번째 날인지 (1, 2, 3...)
+    totalDays: number; // 총 며칠 걸리는지
+  }
+  
+  // 스케줄 상태 (useState로 관리 - 드래그 시 재계산 안함)
+  const [scheduleData, setScheduleData] = useState<Record<string, Record<number, Record<string, DailyItem[]>>>>({});
+  
+  // 스크롤로 월 이동 (기능 비활성화 - 버튼으로만 이동)
+  // 스크롤 끝에서 자동 월 전환은 UX 문제가 있어 제거
+  // 스크롤로 월 이동 (비활성화 - 복잡한 상태 관리로 인해 버튼으로만 이동)
+  const handleScroll = useCallback(() => {
+    // 스크롤 월 이동은 비활성화
+    // 월 이동은 좌/우 화살표 버튼 사용
+  }, []);
 
   // 줌 조절
   const handleZoomIn = () => {
@@ -106,6 +162,120 @@ export default function GanttChart() {
     if (currentIndex > 0) {
       setZoomLevel(ZOOM_LEVELS[currentIndex - 1]);
     }
+  };
+  
+  // 드래그 시작
+  const handleDragStart = (item: ProductionItem, vendorName: string, lineNumber: number, dateKey: string) => {
+    setDragItem({
+      item,
+      sourceVendor: vendorName,
+      sourceLine: lineNumber,
+      sourceDate: dateKey,
+    });
+  };
+  
+  // 드래그 오버 (드롭 대상 설정)
+  const handleDragOver = (e: React.DragEvent, vendorName: string, lineNumber: number, dateKey: string) => {
+    e.preventDefault();
+    setDropTarget({ vendorName, lineNumber, dateKey });
+  };
+  
+  // 드래그 종료
+  const handleDragEnd = () => {
+    if (dragItem && dropTarget) {
+      // 위치가 변경되었는지 확인
+      if (
+        dragItem.sourceVendor !== dropTarget.vendorName ||
+        dragItem.sourceLine !== dropTarget.lineNumber ||
+        dragItem.sourceDate !== dropTarget.dateKey
+      ) {
+        setPendingChange({
+          item: dragItem.item,
+          from: {
+            vendor: dragItem.sourceVendor,
+            line: dragItem.sourceLine,
+            date: dragItem.sourceDate,
+          },
+          to: {
+            vendor: dropTarget.vendorName,
+            line: dropTarget.lineNumber,
+            date: dropTarget.dateKey,
+          },
+        });
+      }
+    }
+    setDragItem(null);
+    setDropTarget(null);
+  };
+  
+  // 변경 확정 - 스케줄을 직접 수정 (다른 품목은 그대로 유지)
+  const confirmChange = () => {
+    if (!pendingChange) return;
+    
+    const { item, from, to } = pendingChange;
+    
+    // 스케줄 복사
+    const newSchedule = JSON.parse(JSON.stringify(scheduleData)) as typeof scheduleData;
+    
+    // 1. 원래 위치에서 해당 품목 모두 제거 (여러 날에 걸친 경우)
+    if (newSchedule[from.vendor]?.[from.line]) {
+      Object.keys(newSchedule[from.vendor][from.line]).forEach(dateKey => {
+        newSchedule[from.vendor][from.line][dateKey] = 
+          newSchedule[from.vendor][from.line][dateKey].filter(
+            (d: DailyItem) => d.item.productCode !== item.productCode
+          );
+      });
+    }
+    
+    // 2. 새 위치에 품목 추가
+    const vendor = vendors.find((v: Vendor) => v.name === to.vendor);
+    const dailyCapa = vendor?.dailyCapacityPerLine || 10000;
+    const totalDays = Math.ceil(item.quantity / dailyCapa);
+    
+    // 주말 제외 근무일만 필터링
+    const workingDays = days.filter(day => !isWeekend(day));
+    const startDayIndex = workingDays.findIndex(d => format(d, 'yyyy-MM-dd') === to.date);
+    
+    if (startDayIndex !== -1 && newSchedule[to.vendor]?.[to.line]) {
+      for (let dayOffset = 0; dayOffset < totalDays; dayOffset++) {
+        const dayIndex = startDayIndex + dayOffset;
+        if (dayIndex >= workingDays.length) break;
+        
+        const currentDay = workingDays[dayIndex];
+        const dateKey = format(currentDay, 'yyyy-MM-dd');
+        
+        const remainingQty = item.quantity - (dayOffset * dailyCapa);
+        const dailyQty = Math.min(remainingQty, dailyCapa);
+        
+        if (newSchedule[to.vendor][to.line][dateKey]) {
+          newSchedule[to.vendor][to.line][dateKey].push({
+            item,
+            dailyQty,
+            dayNumber: dayOffset + 1,
+            totalDays,
+          });
+        }
+      }
+    }
+    
+    // 3. 스케줄 상태 업데이트
+    setScheduleData(newSchedule);
+    
+    // 4. 고정 배치 저장 (다음 엑셀 업로드 시 유지)
+    const placement: FixedPlacement = {
+      productCode: item.productCode,
+      vendorName: to.vendor,
+      lineNumber: to.line,
+      dateKey: to.date,
+    };
+    setFixedPlacement(placement);
+    
+    setPendingChange(null);
+  };
+  
+  // 변경 취소
+  const cancelChange = () => {
+    setPendingChange(null);
   };
 
   // 줌에 따른 셀 너비 계산
@@ -132,7 +302,7 @@ export default function GanttChart() {
 
   // 외주처별 그룹핑
   const groupedByVendor = useMemo(() => {
-    const groups: Record<string, typeof productionItems> = {};
+    const groups: Record<string, ProductionItem[]> = {};
     
     // 외주처 순서 정의 (우선순위 순)
     const vendorOrder = ['위드맘', '리니어', '그램', '이시스', '엘루오', '케이코스텍', '다미', '배정불가'];
@@ -141,7 +311,7 @@ export default function GanttChart() {
       groups[vendor] = [];
     });
     
-    productionItems.forEach(item => {
+    productionItems.forEach((item: ProductionItem) => {
       const vendor = item.assignedVendor || '배정불가';
       if (!groups[vendor]) groups[vendor] = [];
       groups[vendor].push(item);
@@ -150,46 +320,103 @@ export default function GanttChart() {
     return groups;
   }, [productionItems]);
 
-  // 일별 생산 품목 (CAPA 반영)
-  interface DailyItem {
-    item: ProductionItem;
-    dailyQty: number;  // 해당 날짜에 생산할 수량
-    dayNumber: number; // 몇 번째 날인지 (1, 2, 3...)
-    totalDays: number; // 총 며칠 걸리는지
-  }
-
-  // 외주처별 라인별 일정 계산 (CAPA 반영하여 여러 날에 분배)
-  const vendorLineSchedules = useMemo(() => {
+  // 초기 스케줄 계산 함수
+  const calculateInitialSchedule = useCallback(() => {
     const schedules: Record<string, Record<number, Record<string, DailyItem[]>>> = {};
     
     // 주말 제외 근무일만 필터링
     const workingDays = days.filter(day => !isWeekend(day));
     
-    Object.entries(groupedByVendor).forEach(([vendorName, items]) => {
-      const vendor = vendors.find(v => v.name === vendorName);
+    // 모든 외주처에 대해 스케줄 초기화
+    const vendorOrder = ['위드맘', '리니어', '그램', '이시스', '엘루오', '케이코스텍', '다미', '배정불가'];
+    vendorOrder.forEach(vendorName => {
+      const vendor = vendors.find((v: Vendor) => v.name === vendorName);
       const lineCount = vendor?.lineCount || 1;
-      const dailyCapa = vendor?.dailyCapacityPerLine || 10000;
       
       schedules[vendorName] = {};
-      
-      // 라인별 다음 가용 날짜 인덱스 추적
-      const lineNextDayIndex: Record<number, number> = {};
-      
       for (let line = 1; line <= lineCount; line++) {
         schedules[vendorName][line] = {};
-        lineNextDayIndex[line] = 0;
         days.forEach(day => {
           schedules[vendorName][line][format(day, 'yyyy-MM-dd')] = [];
         });
       }
+    });
+    
+    const currentMonth = new Date(selectedMonth);
+    const targetYear = currentMonth.getFullYear();
+    const monthEnd = endOfMonth(currentMonth);
+    
+    // 고정 배치된 품목 ID 추적
+    const fixedProductCodes = new Set(fixedPlacements.map((p: FixedPlacement) => p.productCode));
+    
+    // 1단계: 고정 배치된 품목 먼저 배치
+    fixedPlacements.forEach((placement: FixedPlacement) => {
+      // 해당 품목 찾기
+      const item = productionItems.find((i: ProductionItem) => i.productCode === placement.productCode);
+      if (!item) return;
       
-      const targetYear = selectedMonth.getFullYear();
-      const monthStart = startOfMonth(selectedMonth);
-      const monthEnd = endOfMonth(selectedMonth);
+      const vendor = vendors.find((v: Vendor) => v.name === placement.vendorName);
+      const dailyCapa = vendor?.dailyCapacityPerLine || 10000;
+      
+      // 고정 배치 날짜가 현재 월에 있는지 확인
+      const placementDate = new Date(placement.dateKey);
+      if (placementDate > monthEnd || format(placementDate, 'yyyy-MM') !== format(currentMonth, 'yyyy-MM')) return;
+      
+      // 스케줄에 추가
+      if (schedules[placement.vendorName]?.[placement.lineNumber]?.[placement.dateKey]) {
+        const totalDays = Math.ceil(item.quantity / dailyCapa);
+        
+        // 고정 배치 날짜부터 시작해서 여러 날에 걸쳐 배분
+        const startDayIndex = workingDays.findIndex(d => format(d, 'yyyy-MM-dd') === placement.dateKey);
+        if (startDayIndex === -1) return;
+        
+        for (let dayOffset = 0; dayOffset < totalDays; dayOffset++) {
+          const dayIndex = startDayIndex + dayOffset;
+          if (dayIndex >= workingDays.length) break;
+          
+          const currentDay = workingDays[dayIndex];
+          const dateKey = format(currentDay, 'yyyy-MM-dd');
+          
+          const remainingQty = item.quantity - (dayOffset * dailyCapa);
+          const dailyQty = Math.min(remainingQty, dailyCapa);
+          
+          if (schedules[placement.vendorName][placement.lineNumber][dateKey]) {
+            schedules[placement.vendorName][placement.lineNumber][dateKey].push({
+              item,
+              dailyQty,
+              dayNumber: dayOffset + 1,
+              totalDays,
+            });
+          }
+        }
+      }
+    });
+    
+    // 2단계: 고정되지 않은 품목 자동 배치
+    // 한 라인의 하루에 한 품목만 배치 (CAPA가 남더라도 라인 교체 시간 필요)
+    Object.entries(groupedByVendor).forEach(([vendorName, items]) => {
+      const vendor = vendors.find((v: Vendor) => v.name === vendorName);
+      const lineCount = vendor?.lineCount || 1;
+      const dailyCapa = vendor?.dailyCapacityPerLine || 10000;
+      
+      // 라인별로 점유된 날짜 추적 (fixedPlacements로 이미 배치된 날짜 포함)
+      const lineOccupiedDays: Record<number, Set<string>> = {};
+      for (let line = 1; line <= lineCount; line++) {
+        lineOccupiedDays[line] = new Set();
+        // 이미 배치된 날짜 추가
+        Object.keys(schedules[vendorName]?.[line] || {}).forEach(dateKey => {
+          if (schedules[vendorName][line][dateKey].length > 0) {
+            lineOccupiedDays[line].add(dateKey);
+          }
+        });
+      }
       
       // 라인별로 품목 분배
       let currentLine = 1;
       items.forEach(item => {
+        // 고정 배치된 품목은 스킵
+        if (fixedProductCodes.has(item.productCode)) return;
+        
         // 이동일 기반 생산 시작일 계산
         const productionStartDate = getProductionStartDate(item.transferDate, targetYear, workingDays[0] || days[0]);
         
@@ -200,16 +427,56 @@ export default function GanttChart() {
         let startDayIndex = workingDays.findIndex(d => d >= productionStartDate);
         if (startDayIndex === -1) startDayIndex = 0;
         
-        // 라인의 현재 가용 날짜와 비교하여 더 늦은 날짜 사용
-        const lineAvailableIndex = lineNextDayIndex[currentLine];
-        const actualStartIndex = Math.max(startDayIndex, lineAvailableIndex);
-        
         // 필요한 일수 계산
         const totalDays = Math.ceil(item.quantity / dailyCapa);
         
+        // 현재 라인에서 연속된 빈 날짜 찾기
+        let foundStartIndex = -1;
+        for (let searchStart = startDayIndex; searchStart <= workingDays.length - totalDays; searchStart++) {
+          let canPlace = true;
+          for (let offset = 0; offset < totalDays; offset++) {
+            const checkDate = format(workingDays[searchStart + offset], 'yyyy-MM-dd');
+            if (lineOccupiedDays[currentLine].has(checkDate)) {
+              canPlace = false;
+              break;
+            }
+          }
+          if (canPlace) {
+            foundStartIndex = searchStart;
+            break;
+          }
+        }
+        
+        // 배치 가능한 날짜를 찾지 못하면 다음 라인 시도
+        if (foundStartIndex === -1) {
+          // 다른 라인에서 찾기
+          for (let tryLine = 1; tryLine <= lineCount; tryLine++) {
+            if (tryLine === currentLine) continue;
+            for (let searchStart = startDayIndex; searchStart <= workingDays.length - totalDays; searchStart++) {
+              let canPlace = true;
+              for (let offset = 0; offset < totalDays; offset++) {
+                const checkDate = format(workingDays[searchStart + offset], 'yyyy-MM-dd');
+                if (lineOccupiedDays[tryLine].has(checkDate)) {
+                  canPlace = false;
+                  break;
+                }
+              }
+              if (canPlace) {
+                foundStartIndex = searchStart;
+                currentLine = tryLine;
+                break;
+              }
+            }
+            if (foundStartIndex !== -1) break;
+          }
+        }
+        
+        // 여전히 찾지 못하면 이 품목은 배치 불가 (월 범위 초과)
+        if (foundStartIndex === -1) return;
+        
         // 여러 날에 걸쳐 배분
         for (let dayOffset = 0; dayOffset < totalDays; dayOffset++) {
-          const dayIndex = actualStartIndex + dayOffset;
+          const dayIndex = foundStartIndex + dayOffset;
           if (dayIndex >= workingDays.length) break;
           
           const currentDay = workingDays[dayIndex];
@@ -226,18 +493,29 @@ export default function GanttChart() {
               dayNumber: dayOffset + 1,
               totalDays,
             });
+            // 점유된 날짜로 마킹
+            lineOccupiedDays[currentLine].add(dateKey);
           }
         }
         
-        // 해당 라인의 다음 가용 날짜 업데이트
-        lineNextDayIndex[currentLine] = actualStartIndex + totalDays;
-        
+        // 다음 라인으로 순환
         currentLine = (currentLine % lineCount) + 1;
       });
     });
     
     return schedules;
-  }, [groupedByVendor, days, vendors, selectedMonth]);
+  }, [days, vendors, selectedMonth, fixedPlacements, productionItems, groupedByVendor]);
+
+  // productionItems 또는 selectedMonth 변경 시에만 초기 스케줄 계산
+  useEffect(() => {
+    if (productionItems.length > 0) {
+      const initialSchedule = calculateInitialSchedule();
+      setScheduleData(initialSchedule);
+    }
+  }, [productionItems, selectedMonth, vendors]); // fixedPlacements는 제외! (드래그 시 재계산 안함)
+
+  // 현재 표시할 스케줄 (scheduleData 사용)
+  const vendorLineSchedules = scheduleData;
 
   const handlePrevMonth = () => setSelectedMonth(subMonths(selectedMonth, 1));
   const handleNextMonth = () => setSelectedMonth(addMonths(selectedMonth, 1));
@@ -299,7 +577,7 @@ export default function GanttChart() {
       </div>
       
       {/* 간트 차트 */}
-      <div className="overflow-x-auto max-h-[70vh]" ref={scrollRef}>
+      <div className="overflow-x-auto max-h-[70vh]" ref={scrollRef} onScroll={handleScroll}>
         <div className="min-w-max" style={{ fontSize: `${zoomLevel}%` }}>
           {/* 날짜 헤더 */}
           <div className="flex border-b border-gray-200 sticky top-0 bg-gray-50 z-20">
@@ -335,9 +613,9 @@ export default function GanttChart() {
           {Object.entries(groupedByVendor).map(([vendorName, items]) => {
             if (items.length === 0) return null;
             
-            const vendor = vendors.find(v => v.name === vendorName);
+            const vendor = vendors.find((v: Vendor) => v.name === vendorName);
             const lineCount = vendor?.lineCount || 1;
-            const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+            const totalQty = items.reduce((sum: number, item: ProductionItem) => sum + item.quantity, 0);
             
             return (
               <div key={vendorName} className="border-b border-gray-200">
@@ -365,7 +643,7 @@ export default function GanttChart() {
                 </div>
                 
                 {/* 라인별 행 */}
-                {Array.from({ length: Math.min(lineCount, 3) }, (_, lineIdx) => {
+                {Array.from({ length: lineCount }, (_, lineIdx) => {
                   const lineNumber = lineIdx + 1;
                   
                   return (
@@ -381,29 +659,62 @@ export default function GanttChart() {
                         const dateKey = format(day, 'yyyy-MM-dd');
                         const dayItems = vendorLineSchedules[vendorName]?.[lineNumber]?.[dateKey] || [];
                         const minHeight = zoomLevel < 75 ? 40 : zoomLevel < 100 ? 50 : 60;
+                        const isDropTarget = dropTarget?.vendorName === vendorName && 
+                                             dropTarget?.lineNumber === lineNumber && 
+                                             dropTarget?.dateKey === dateKey;
+                        const isWeekendDay = isWeekend(day);
                         
                         return (
                           <div
                             key={dayIdx}
-                            className="flex-shrink-0 p-0.5 border-r border-gray-200"
+                            className={`
+                              flex-shrink-0 p-0.5 border-r border-gray-200 transition-colors
+                              ${isDropTarget ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}
+                              ${isWeekendDay ? 'bg-red-50/50' : ''}
+                              ${dragItem && !isWeekendDay ? 'hover:bg-blue-50' : ''}
+                            `}
                             style={{ width: `${cellWidth}px`, minHeight: `${minHeight}px` }}
+                            onDragOver={(e) => {
+                              if (!isWeekendDay) {
+                                handleDragOver(e, vendorName, lineNumber, dateKey);
+                              }
+                            }}
+                            onDragLeave={() => setDropTarget(null)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (!isWeekendDay) {
+                                handleDragEnd();
+                              }
+                            }}
                           >
-                            {dayItems.map((dailyItem, itemIdx) => {
+                              {dayItems.map((dailyItem, itemIdx) => {
                               const nameLength = zoomLevel < 75 ? 4 : zoomLevel < 100 ? 6 : 8;
+                              const isFixed = fixedPlacements.some((p: FixedPlacement) => p.productCode === dailyItem.item.productCode);
                               return (
                                 <div
                                   key={itemIdx}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    handleDragStart(dailyItem.item, vendorName, lineNumber, dateKey);
+                                  }}
+                                  onDragEnd={handleDragEnd}
                                   className={`
-                                    p-0.5 rounded mb-0.5 cursor-pointer
+                                    p-0.5 rounded mb-0.5 cursor-grab active:cursor-grabbing
                                     border ${vendorBgColors[vendorName] || 'bg-gray-100 border-gray-300'}
                                     hover:opacity-80 transition-opacity select-none
                                     ${zoomLevel < 75 ? 'text-[8px]' : zoomLevel < 100 ? 'text-[10px]' : 'text-xs'}
+                                    ${dragItem?.item.productCode === dailyItem.item.productCode ? 'opacity-50 ring-2 ring-blue-400' : ''}
+                                    ${isFixed ? 'ring-1 ring-yellow-400' : ''}
                                   `}
-                                  title="더블클릭하여 상세정보 보기"
+                                  title={isFixed ? '고정된 품목 (드래그하여 이동)' : '드래그하여 이동, 더블클릭하여 상세정보'}
                                   onDoubleClick={() => handleItemDoubleClick(dailyItem.item)}
                                 >
-                                  <div className="font-medium truncate">
-                                    {dailyItem.item.productName.slice(0, nameLength)}..
+                                  <div className="flex items-center gap-0.5">
+                                    <GripVertical className="w-2 h-2 text-gray-400 flex-shrink-0" />
+                                    <span className="font-medium truncate">
+                                      {dailyItem.item.productName.slice(0, nameLength)}..
+                                    </span>
                                   </div>
                                   <div className="text-gray-600">
                                     {dailyItem.dailyQty.toLocaleString()}
@@ -427,6 +738,77 @@ export default function GanttChart() {
           })}
         </div>
       </div>
+
+      {/* 변경 확정 다이얼로그 */}
+      {pendingChange && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={cancelChange}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Check className="w-5 h-5 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold">이대로 계획을 확정하시겠습니까?</h3>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500 w-16">품목:</span>
+                <span className="font-medium">{pendingChange.item.productName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500 w-16">코드:</span>
+                <span className="font-mono text-sm">{pendingChange.item.productCode}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-500 w-16">수량:</span>
+                <span>{pendingChange.item.quantity.toLocaleString()}개</span>
+              </div>
+              
+              <div className="border-t border-gray-200 pt-3 mt-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-red-50 rounded-lg p-3">
+                    <div className="text-xs text-red-500 font-medium mb-1">변경 전</div>
+                    <div className="text-sm font-medium">{pendingChange.from.vendor}</div>
+                    <div className="text-xs text-gray-600">라인 {pendingChange.from.line}</div>
+                    <div className="text-xs text-gray-600">{pendingChange.from.date}</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3">
+                    <div className="text-xs text-green-500 font-medium mb-1">변경 후</div>
+                    <div className="text-sm font-medium">{pendingChange.to.vendor}</div>
+                    <div className="text-xs text-gray-600">라인 {pendingChange.to.line}</div>
+                    <div className="text-xs text-gray-600">{pendingChange.to.date}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <p className="text-xs text-gray-500 mt-2">
+                * 확정하면 이 품목은 다음 엑셀 업로드 시에도 지정한 위치에 고정 배치됩니다.
+              </p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={cancelChange}
+                className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmChange}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                변경
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 품목 상세 모달 */}
       {selectedItem && (

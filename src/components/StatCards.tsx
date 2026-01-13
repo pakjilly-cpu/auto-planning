@@ -4,14 +4,15 @@ import { useMemo } from 'react';
 import { Package, Factory, TrendingUp, Target } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { calculateVendorStats } from '@/lib/allocation';
+import { ProductionItem, ProductionPlan } from '@/lib/types';
 
 export default function StatCards() {
   const { productionItems, productionPlans, vendors } = useAppStore();
 
   const stats = useMemo(() => {
     const vendorStats = calculateVendorStats(productionPlans, vendors);
-    const totalQuantity = productionItems.reduce((sum, item) => sum + item.quantity, 0);
-    const totalPlanned = productionPlans.reduce((sum, plan) => sum + plan.totalQuantity, 0);
+    const totalQuantity = productionItems.reduce((sum: number, item: ProductionItem) => sum + item.quantity, 0);
+    const totalPlanned = productionPlans.reduce((sum: number, plan: ProductionPlan) => sum + plan.totalQuantity, 0);
     
     return {
       totalItems: productionItems.length,

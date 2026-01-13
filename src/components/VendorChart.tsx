@@ -14,6 +14,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { useAppStore } from '@/lib/store';
+import { ProductionItem, Vendor } from '@/lib/types';
 
 const colors = [
   '#3B82F6', // blue
@@ -25,26 +26,33 @@ const colors = [
   '#F59E0B', // amber
 ];
 
+interface ChartDataItem {
+  name: string;
+  quantity: number;
+  target: number;
+  color: string;
+}
+
 export default function VendorChart() {
   const { productionItems, vendors } = useAppStore();
 
   const chartData = useMemo(() => {
     const vendorQuantities: Record<string, number> = {};
     
-    productionItems.forEach(item => {
+    productionItems.forEach((item: ProductionItem) => {
       const vendor = item.assignedVendor || '미배정';
       vendorQuantities[vendor] = (vendorQuantities[vendor] || 0) + item.quantity;
     });
     
-    return vendors.map((vendor, index) => ({
+    return vendors.map((vendor: Vendor, index: number) => ({
       name: vendor.name,
       quantity: vendorQuantities[vendor.name] || 0,
       target: vendor.monthlyTarget || 0,
       color: colors[index % colors.length],
-    })).filter(v => v.quantity > 0 || v.target > 0);
+    })).filter((v: ChartDataItem) => v.quantity > 0 || v.target > 0);
   }, [productionItems, vendors]);
 
-  const totalQuantity = chartData.reduce((sum, d) => sum + d.quantity, 0);
+  const totalQuantity = chartData.reduce((sum: number, d: ChartDataItem) => sum + d.quantity, 0);
 
   if (productionItems.length === 0) {
     return (
@@ -102,7 +110,7 @@ export default function VendorChart() {
               name="quantity"
               radius={[4, 4, 0, 0]}
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((entry: ChartDataItem, index: number) => (
                 <Cell key={index} fill={entry.color} />
               ))}
             </Bar>
@@ -119,8 +127,8 @@ export default function VendorChart() {
       {/* 달성률 표시 */}
       <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
         {chartData
-          .filter(d => d.target > 0)
-          .map((vendor, index) => {
+          .filter((d: ChartDataItem) => d.target > 0)
+          .map((vendor: ChartDataItem, index: number) => {
             const rate = Math.round((vendor.quantity / vendor.target) * 100);
             return (
               <div
