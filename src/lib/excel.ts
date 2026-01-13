@@ -35,9 +35,14 @@ export async function parseExcelFile(file: File): Promise<ProductionItem[]> {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'array' });
         
-        // 첫 번째 시트 사용
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+        // "계획" 시트 우선 사용, 없으면 첫 번째 시트
+        const targetSheetName = workbook.SheetNames.find(name => name === '계획') || workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[targetSheetName];
+        
+        if (!worksheet) {
+          reject(new Error('시트를 찾을 수 없습니다. "계획" 시트가 있는지 확인해주세요.'));
+          return;
+        }
         
         // JSON으로 변환 (헤더 없이 배열로)
         const rows: (string | number)[][] = XLSX.utils.sheet_to_json(worksheet, {
