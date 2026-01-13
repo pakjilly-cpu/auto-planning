@@ -65,9 +65,13 @@ export async function parseExcelFile(file: File): Promise<ProductionItem[]> {
           const quantity = parseQuantity(row[EXCEL_COLUMNS.QUANTITY]);
           if (quantity === 0) continue;
           
+          // 이동일이 "미정"이면 건너뛰기 (계획에 반영하지 않음)
+          const transferDate = row[EXCEL_COLUMNS.TRANSFER_DATE]?.toString().trim();
+          if (transferDate === '미정' || transferDate === '') continue;
+          
           const item: ProductionItem = {
             id: `item-${i}-${Date.now()}`,
-            transferDate: row[EXCEL_COLUMNS.TRANSFER_DATE]?.toString().trim(),
+            transferDate,
             status: row[EXCEL_COLUMNS.STATUS]?.toString().trim(),
             specialProcess: parseSpecialProcess(row[EXCEL_COLUMNS.SPECIAL_PROCESS]?.toString()),
             assignedVendor: row[EXCEL_COLUMNS.VENDOR]?.toString().trim() || undefined,
