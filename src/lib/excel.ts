@@ -67,7 +67,7 @@ export async function parseExcelFile(file: File): Promise<ProductionItem[]> {
           
           const item: ProductionItem = {
             id: `item-${i}-${Date.now()}`,
-            date: row[EXCEL_COLUMNS.DATE]?.toString().trim(),
+            transferDate: row[EXCEL_COLUMNS.TRANSFER_DATE]?.toString().trim(),
             status: row[EXCEL_COLUMNS.STATUS]?.toString().trim(),
             specialProcess: parseSpecialProcess(row[EXCEL_COLUMNS.SPECIAL_PROCESS]?.toString()),
             assignedVendor: row[EXCEL_COLUMNS.VENDOR]?.toString().trim() || undefined,
@@ -102,7 +102,7 @@ export async function parseExcelFile(file: File): Promise<ProductionItem[]> {
 // 배분 결과를 엑셀로 내보내기
 export function exportToExcel(items: ProductionItem[]): void {
   const exportData = items.map((item) => ({
-    '날짜': item.date || '',
+    '이동일': item.transferDate || '',
     '상태': item.status || '',
     '특수공정': item.specialProcess === 'normal' ? '' : 
       item.specialProcess === 'shrink' ? '수축' :

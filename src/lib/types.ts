@@ -29,7 +29,7 @@ export interface ClientVendorMapping {
 // 엑셀에서 파싱한 생산 품목
 export interface ProductionItem {
   id: string;
-  date?: string; // A열
+  transferDate?: string; // A열 - 이동일 (자재를 생산처에 가져다 주는 날)
   status?: string; // B열
   specialProcess?: ProcessType; // C열 (수축, 교반, 고주파)
   assignedVendor?: string; // D열 (배정될 외주처)
@@ -91,7 +91,7 @@ export interface VendorStat {
 
 // 엑셀 컬럼 매핑
 export const EXCEL_COLUMNS = {
-  DATE: 0,           // A열
+  TRANSFER_DATE: 0,  // A열 - 이동일
   STATUS: 1,         // B열
   SPECIAL_PROCESS: 2,// C열
   VENDOR: 3,         // D열

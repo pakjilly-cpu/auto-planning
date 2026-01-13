@@ -1,6 +1,59 @@
-import { addDays, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, format } from 'date-fns';
+import { addDays, startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, format, parse } from 'date-fns';
 import { Vendor, ClientVendorMapping, ProductionItem, ProductionPlan, ProcessType } from './types';
 import { vendorNameMap } from '@/data/defaults';
+
+// 이동일 문자열을 Date로 파싱 (다양한 형식 지원)
+function parseTransferDate(dateStr: string | undefined, fallbackYear: number): Date | null {
+  if (!dateStr) return null;
+  
+  const trimmed = dateStr.trim();
+  if (trimmed === '미정' || trimmed === '' || trimmed === '-') return null;
+  
+  // "1/9", "01/09", "1월 9일" 등의 형식 처리
+  const patterns = [
+    /^(\d{1,2})\/(\d{1,2})$/,           // 1/9 또는 01/09
+    /^(\d{1,2})월\s*(\d{1,2})일?$/,     // 1월 9일 또는 1월9
+    /^(\d{4})-(\d{1,2})-(\d{1,2})$/,    // 2025-01-09
+  ];
+  
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      if (match.length === 4) {
+        // YYYY-MM-DD 형식
+        return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+      } else {
+        // M/D 또는 M월 D일 형식
+        const month = parseInt(match[1]) - 1;
+        const day = parseInt(match[2]);
+        return new Date(fallbackYear, month, day);
+      }
+    }
+  }
+  
+  return null;
+}
+
+// 다음 근무일 계산 (주말 제외, n일 후)
+function getNextWorkingDay(date: Date, daysToAdd: number = 1): Date {
+  let result = new Date(date);
+  let addedDays = 0;
+  
+  while (addedDays < daysToAdd) {
+    result = addDays(result, 1);
+    // 주말이 아니면 카운트
+    if (!isWeekend(result)) {
+      addedDays++;
+    }
+  }
+  
+  return result;
+}
+
+// 근무일만 필터링
+function getWorkingDays(days: Date[]): Date[] {
+  return days.filter(day => !isWeekend(day));
+}
 
 // 외주처별 라인별 일일 할당 현황
 interface LineSchedule {
@@ -114,10 +167,13 @@ export function allocateProduction(
   const plans: ProductionPlan[] = [];
   const allocatedItems: ProductionItem[] = [];
   
-  // 해당 월의 작업 가능 일자 (주말 제외 옵션 가능)
+  // 해당 월의 작업 가능 일자 (주말 제외)
   const monthStart = startOfMonth(targetMonth);
   const monthEnd = endOfMonth(targetMonth);
-  const workingDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const workingDays = getWorkingDays(allDays);
+  
+  const targetYear = targetMonth.getFullYear();
   
   // 이미 외주처가 배정된 항목과 미배정 항목 분리
   const assignedItems = items.filter(item => item.assignedVendor);
@@ -144,14 +200,36 @@ export function allocateProduction(
       assignedVendor: vendorNameMap[vendor.id] || vendor.name,
     };
     
+    // 이동일 파싱 및 생산 시작일 계산 (이동일 + 1 근무일)
+    const transferDate = parseTransferDate(item.transferDate, targetYear);
+    let productionStartDate: Date;
+    
+    if (transferDate) {
+      // 이동일이 있으면 이동일 + 1 근무일부터 시작
+      productionStartDate = getNextWorkingDay(transferDate, 1);
+    } else {
+      // 이동일이 없으면 월 첫 근무일부터 시작
+      productionStartDate = workingDays[0];
+    }
+    
+    // 생산 시작일 이후의 근무일만 필터링
+    const availableWorkingDays = workingDays.filter(day => day >= productionStartDate);
+    
+    if (availableWorkingDays.length === 0) {
+      // 해당 월에 생산 가능한 날이 없으면 배정불가
+      allocatedItems.push({ ...item, assignedVendor: '배정불가(일정초과)' });
+      continue;
+    }
+    
     // 생산 일정 계획
     let remainingQuantity = item.quantity;
     let currentDayIndex = 0;
-    const planStartDate = workingDays[0];
-    let planEndDate = workingDays[0];
+    let planStartDate = availableWorkingDays[0];
+    let planEndDate = availableWorkingDays[0];
+    let isFirstAllocation = true;
     
-    while (remainingQuantity > 0 && currentDayIndex < workingDays.length) {
-      const currentDate = workingDays[currentDayIndex];
+    while (remainingQuantity > 0 && currentDayIndex < availableWorkingDays.length) {
+      const currentDate = availableWorkingDays[currentDayIndex];
       const availableLines = getAvailableCapacity(vendor, currentDate, schedules);
       
       if (availableLines.length === 0) {
@@ -171,6 +249,11 @@ export function allocateProduction(
           date: currentDate,
           allocatedQuantity: allocateQty,
         });
+        
+        if (isFirstAllocation) {
+          planStartDate = currentDate;
+          isFirstAllocation = false;
+        }
         
         remainingQuantity -= allocateQty;
         planEndDate = currentDate;
