@@ -20,8 +20,8 @@ export default function ExcelUpload() {
   } = useAppStore();
 
   const handleFile = useCallback(async (file: File) => {
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-      setError('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.');
+    if (!file.name.match(/\.(xlsx|xls|xlsm)$/i)) {
+      setError('엑셀 파일(.xlsx, .xls, .xlsm)만 업로드 가능합니다.');
       return;
     }
 
@@ -88,7 +88,7 @@ export default function ExcelUpload() {
       >
         <input
           type="file"
-          accept=".xlsx,.xls"
+          accept=".xlsx,.xls,.xlsm"
           onChange={handleInputChange}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
@@ -105,7 +105,7 @@ export default function ExcelUpload() {
               {isDragging ? '여기에 놓으세요' : '엑셀 파일을 드래그하거나 클릭하여 업로드'}
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              .xlsx, .xls 파일 지원
+              .xlsx, .xls, .xlsm 파일 지원
             </p>
           </div>
         </div>
