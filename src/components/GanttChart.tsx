@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, isToday } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { ProductionItem } from '@/lib/types';
 
 // 외주처별 색상
 const vendorColors: Record<string, string> = {
@@ -32,6 +33,17 @@ const vendorBgColors: Record<string, string> = {
 export default function GanttChart() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { productionItems, selectedMonth, setSelectedMonth, vendors } = useAppStore();
+  const [selectedItem, setSelectedItem] = useState<ProductionItem | null>(null);
+
+  // 품목 더블클릭 핸들러
+  const handleItemDoubleClick = (item: ProductionItem) => {
+    setSelectedItem(item);
+  };
+
+  // 모달 닫기
+  const closeModal = () => {
+    setSelectedItem(null);
+  };
 
   // 날짜 배열 생성
   const days = useMemo(() => {
@@ -204,9 +216,10 @@ export default function GanttChart() {
                                 className={`
                                   text-xs p-1 rounded mb-1 truncate cursor-pointer
                                   border ${vendorBgColors[vendorName] || 'bg-gray-100 border-gray-300'}
-                                  hover:opacity-80 transition-opacity
+                                  hover:opacity-80 transition-opacity select-none
                                 `}
-                                title={`${item.productName}\n수량: ${item.quantity.toLocaleString()}`}
+                                title="더블클릭하여 상세정보 보기"
+                                onDoubleClick={() => handleItemDoubleClick(item)}
                               >
                                 <div className="font-medium truncate">
                                   {item.productName.slice(0, 10)}...
@@ -227,6 +240,76 @@ export default function GanttChart() {
           })}
         </div>
       </div>
+
+      {/* 품목 상세 모달 */}
+      {selectedItem && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={closeModal}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">품목 상세정보</h3>
+              <button
+                onClick={closeModal}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-500">제품코드</label>
+                <p className="font-mono font-medium text-gray-900">{selectedItem.productCode}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500">제품명</label>
+                <p className="font-medium text-gray-900">{selectedItem.productName}</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500">수량</label>
+                <p className="font-medium text-gray-900 text-lg">{selectedItem.quantity.toLocaleString()}개</p>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500">납기</label>
+                <p className="font-medium text-gray-900">{selectedItem.deliveryDate || '-'}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <label className="text-gray-500">이동일</label>
+                  <p className="font-medium">{selectedItem.transferDate || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-gray-500">외주처</label>
+                  <p className="font-medium">{selectedItem.assignedVendor || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-gray-500">공정</label>
+                  <p className="font-medium">{selectedItem.processType || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-gray-500">담당자</label>
+                  <p className="font-medium">{selectedItem.manager || '-'}</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={closeModal}
+              className="mt-6 w-full py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
