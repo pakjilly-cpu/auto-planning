@@ -126,54 +126,94 @@ export default function GanttChart() {
     return groups;
   }, [productionItems]);
 
-  // 외주처별 라인별 일정 계산
+  // 일별 생산 품목 (CAPA 반영)
+  interface DailyItem {
+    item: ProductionItem;
+    dailyQty: number;  // 해당 날짜에 생산할 수량
+    dayNumber: number; // 몇 번째 날인지 (1, 2, 3...)
+    totalDays: number; // 총 며칠 걸리는지
+  }
+
+  // 외주처별 라인별 일정 계산 (CAPA 반영하여 여러 날에 분배)
   const vendorLineSchedules = useMemo(() => {
-    const schedules: Record<string, Record<number, Record<string, typeof productionItems[0][]>>> = {};
+    const schedules: Record<string, Record<number, Record<string, DailyItem[]>>> = {};
+    
+    // 주말 제외 근무일만 필터링
+    const workingDays = days.filter(day => !isWeekend(day));
     
     Object.entries(groupedByVendor).forEach(([vendorName, items]) => {
       const vendor = vendors.find(v => v.name === vendorName);
       const lineCount = vendor?.lineCount || 1;
+      const dailyCapa = vendor?.dailyCapacityPerLine || 10000;
       
       schedules[vendorName] = {};
       
+      // 라인별 다음 가용 날짜 인덱스 추적
+      const lineNextDayIndex: Record<number, number> = {};
+      
       for (let line = 1; line <= lineCount; line++) {
         schedules[vendorName][line] = {};
+        lineNextDayIndex[line] = 0;
         days.forEach(day => {
           schedules[vendorName][line][format(day, 'yyyy-MM-dd')] = [];
         });
       }
       
-      // 아이템을 라인에 배분 (이동일 + 1 근무일 기준)
       const targetYear = selectedMonth.getFullYear();
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
       
+      // 라인별로 품목 분배
       let currentLine = 1;
       items.forEach(item => {
         // 이동일 기반 생산 시작일 계산
-        const productionStartDate = getProductionStartDate(item.transferDate, targetYear, days[0]);
+        const productionStartDate = getProductionStartDate(item.transferDate, targetYear, workingDays[0] || days[0]);
         
-        // 해당 월 범위 내인지 확인
-        let dateKey: string;
-        if (productionStartDate >= monthStart && productionStartDate <= monthEnd) {
-          dateKey = format(productionStartDate, 'yyyy-MM-dd');
-        } else if (productionStartDate < monthStart) {
-          // 이전 월이면 월 첫날에 배치
-          dateKey = format(days[0], 'yyyy-MM-dd');
-        } else {
-          // 다음 월이면 표시하지 않음 (월말에 배치)
-          dateKey = format(days[days.length - 1], 'yyyy-MM-dd');
+        // 해당 월 범위 체크
+        if (productionStartDate > monthEnd) return;
+        
+        // 생산 시작일 이후의 근무일 찾기
+        let startDayIndex = workingDays.findIndex(d => d >= productionStartDate);
+        if (startDayIndex === -1) startDayIndex = 0;
+        
+        // 라인의 현재 가용 날짜와 비교하여 더 늦은 날짜 사용
+        const lineAvailableIndex = lineNextDayIndex[currentLine];
+        const actualStartIndex = Math.max(startDayIndex, lineAvailableIndex);
+        
+        // 필요한 일수 계산
+        const totalDays = Math.ceil(item.quantity / dailyCapa);
+        
+        // 여러 날에 걸쳐 배분
+        for (let dayOffset = 0; dayOffset < totalDays; dayOffset++) {
+          const dayIndex = actualStartIndex + dayOffset;
+          if (dayIndex >= workingDays.length) break;
+          
+          const currentDay = workingDays[dayIndex];
+          const dateKey = format(currentDay, 'yyyy-MM-dd');
+          
+          // 해당 날짜에 생산할 수량 계산
+          const remainingQty = item.quantity - (dayOffset * dailyCapa);
+          const dailyQty = Math.min(remainingQty, dailyCapa);
+          
+          if (schedules[vendorName][currentLine][dateKey]) {
+            schedules[vendorName][currentLine][dateKey].push({
+              item,
+              dailyQty,
+              dayNumber: dayOffset + 1,
+              totalDays,
+            });
+          }
         }
         
-        if (schedules[vendorName][currentLine][dateKey]) {
-          schedules[vendorName][currentLine][dateKey].push(item);
-        }
+        // 해당 라인의 다음 가용 날짜 업데이트
+        lineNextDayIndex[currentLine] = actualStartIndex + totalDays;
+        
         currentLine = (currentLine % lineCount) + 1;
       });
     });
     
     return schedules;
-  }, [groupedByVendor, days, vendors]);
+  }, [groupedByVendor, days, vendors, selectedMonth]);
 
   const handlePrevMonth = () => setSelectedMonth(subMonths(selectedMonth, 1));
   const handleNextMonth = () => setSelectedMonth(addMonths(selectedMonth, 1));
@@ -284,23 +324,28 @@ export default function GanttChart() {
                             key={dayIdx}
                             className="w-24 flex-shrink-0 p-1 border-r border-gray-200 min-h-[60px]"
                           >
-                            {dayItems.map((item, itemIdx) => (
+                            {dayItems.map((dailyItem, itemIdx) => (
                               <div
                                 key={itemIdx}
                                 className={`
-                                  text-xs p-1 rounded mb-1 truncate cursor-pointer
+                                  text-xs p-1 rounded mb-1 cursor-pointer
                                   border ${vendorBgColors[vendorName] || 'bg-gray-100 border-gray-300'}
                                   hover:opacity-80 transition-opacity select-none
                                 `}
                                 title="더블클릭하여 상세정보 보기"
-                                onDoubleClick={() => handleItemDoubleClick(item)}
+                                onDoubleClick={() => handleItemDoubleClick(dailyItem.item)}
                               >
                                 <div className="font-medium truncate">
-                                  {item.productName.slice(0, 10)}...
+                                  {dailyItem.item.productName.slice(0, 8)}..
                                 </div>
                                 <div className="text-gray-600">
-                                  {item.quantity.toLocaleString()}
+                                  {dailyItem.dailyQty.toLocaleString()}
                                 </div>
+                                {dailyItem.totalDays > 1 && (
+                                  <div className="text-gray-400 text-[10px]">
+                                    ({dailyItem.dayNumber}/{dailyItem.totalDays}일)
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
