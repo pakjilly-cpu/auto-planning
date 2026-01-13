@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { format, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, isToday } from 'date-fns';
+import { format, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, isToday, addDays, isWeekend } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
@@ -29,6 +29,60 @@ const vendorBgColors: Record<string, string> = {
   '다미': 'bg-amber-100 border-amber-300',
   '배정불가': 'bg-gray-100 border-gray-300',
 };
+
+// 이동일 문자열을 Date로 파싱
+function parseTransferDate(dateStr: string | undefined, fallbackYear: number): Date | null {
+  if (!dateStr) return null;
+  
+  const trimmed = dateStr.trim();
+  if (trimmed === '미정' || trimmed === '' || trimmed === '-') return null;
+  
+  // "1/9", "01/09", "1월 9일" 등의 형식 처리
+  const patterns = [
+    /^(\d{1,2})\/(\d{1,2})$/,           // 1/9 또는 01/09
+    /^(\d{1,2})월\s*(\d{1,2})일?$/,     // 1월 9일 또는 1월9
+    /^(\d{4})-(\d{1,2})-(\d{1,2})$/,    // 2025-01-09
+  ];
+  
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      if (match.length === 4) {
+        return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+      } else {
+        const month = parseInt(match[1]) - 1;
+        const day = parseInt(match[2]);
+        return new Date(fallbackYear, month, day);
+      }
+    }
+  }
+  
+  return null;
+}
+
+// 다음 근무일 계산 (주말 제외)
+function getNextWorkingDay(date: Date, daysToAdd: number = 1): Date {
+  let result = new Date(date);
+  let addedDays = 0;
+  
+  while (addedDays < daysToAdd) {
+    result = addDays(result, 1);
+    if (!isWeekend(result)) {
+      addedDays++;
+    }
+  }
+  
+  return result;
+}
+
+// 생산 시작일 계산 (이동일 + 1 근무일)
+function getProductionStartDate(transferDateStr: string | undefined, targetYear: number, fallbackDate: Date): Date {
+  const transferDate = parseTransferDate(transferDateStr, targetYear);
+  if (transferDate) {
+    return getNextWorkingDay(transferDate, 1);
+  }
+  return fallbackDate;
+}
 
 export default function GanttChart() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -89,12 +143,31 @@ export default function GanttChart() {
         });
       }
       
-      // 아이템을 라인에 배분
+      // 아이템을 라인에 배분 (이동일 + 1 근무일 기준)
+      const targetYear = selectedMonth.getFullYear();
+      const monthStart = startOfMonth(selectedMonth);
+      const monthEnd = endOfMonth(selectedMonth);
+      
       let currentLine = 1;
       items.forEach(item => {
-        // 간단한 배분: 라운드 로빈
-        const dateKey = format(days[0], 'yyyy-MM-dd'); // 임시로 첫날에 배치
-        schedules[vendorName][currentLine][dateKey].push(item);
+        // 이동일 기반 생산 시작일 계산
+        const productionStartDate = getProductionStartDate(item.transferDate, targetYear, days[0]);
+        
+        // 해당 월 범위 내인지 확인
+        let dateKey: string;
+        if (productionStartDate >= monthStart && productionStartDate <= monthEnd) {
+          dateKey = format(productionStartDate, 'yyyy-MM-dd');
+        } else if (productionStartDate < monthStart) {
+          // 이전 월이면 월 첫날에 배치
+          dateKey = format(days[0], 'yyyy-MM-dd');
+        } else {
+          // 다음 월이면 표시하지 않음 (월말에 배치)
+          dateKey = format(days[days.length - 1], 'yyyy-MM-dd');
+        }
+        
+        if (schedules[vendorName][currentLine][dateKey]) {
+          schedules[vendorName][currentLine][dateKey].push(item);
+        }
         currentLine = (currentLine % lineCount) + 1;
       });
     });
