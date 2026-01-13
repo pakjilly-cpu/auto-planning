@@ -267,16 +267,17 @@ export default function GanttChart() {
                 
                 {/* 라인별 행 */}
                 {Array.from({ length: Math.min(lineCount, 3) }, (_, lineIdx) => {
-                  const lineItems = items.filter((_, i) => i % lineCount === lineIdx);
+                  const lineNumber = lineIdx + 1;
                   
                   return (
                     <div key={lineIdx} className="flex hover:bg-gray-50">
                       <div className="w-48 flex-shrink-0 p-2 pl-6 border-r border-gray-200 text-sm text-gray-500">
-                        라인 {lineIdx + 1}
+                        라인 {lineNumber}
                       </div>
                       {days.map((day, dayIdx) => {
-                        // 각 날짜에 할당된 아이템 표시 (간단화)
-                        const dayItems = lineItems.slice(dayIdx * 2, dayIdx * 2 + 2);
+                        // vendorLineSchedules에서 해당 날짜의 아이템 가져오기
+                        const dateKey = format(day, 'yyyy-MM-dd');
+                        const dayItems = vendorLineSchedules[vendorName]?.[lineNumber]?.[dateKey] || [];
                         
                         return (
                           <div
