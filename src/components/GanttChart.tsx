@@ -29,27 +29,64 @@ interface PendingChange {
   to: { vendor: string; line: number; date: string };
 }
 
-// 외주처별 색상
-const vendorColors: Record<string, string> = {
-  '위드맘': 'bg-blue-500',
-  '리니어': 'bg-green-500',
-  '그램': 'bg-purple-500',
-  '이시스': 'bg-orange-500',
-  '엘루오': 'bg-pink-500',
-  '케이코스텍': 'bg-cyan-500',
-  '다미': 'bg-amber-500',
-  '배정불가': 'bg-gray-400',
-};
-
-const vendorBgColors: Record<string, string> = {
-  '위드맘': 'bg-blue-100 border-blue-300',
-  '리니어': 'bg-green-100 border-green-300',
-  '그램': 'bg-purple-100 border-purple-300',
-  '이시스': 'bg-orange-100 border-orange-300',
-  '엘루오': 'bg-pink-100 border-pink-300',
-  '케이코스텍': 'bg-cyan-100 border-cyan-300',
-  '다미': 'bg-amber-100 border-amber-300',
-  '배정불가': 'bg-gray-100 border-gray-300',
+// 최신 트렌드 그라디언트 색상 (2024-2025)
+const vendorColors: Record<string, { bg: string; text: string; border: string; light: string; gradient: string }> = {
+  '위드맘': {
+    bg: 'bg-gradient-to-br from-blue-600 to-blue-700',
+    text: 'text-blue-600',
+    border: 'border-blue-200',
+    light: 'bg-blue-50',
+    gradient: 'from-blue-50 via-blue-50 to-blue-100',
+  },
+  '리니어': {
+    bg: 'bg-gradient-to-br from-emerald-600 to-emerald-700',
+    text: 'text-emerald-600',
+    border: 'border-emerald-200',
+    light: 'bg-emerald-50',
+    gradient: 'from-emerald-50 via-emerald-50 to-emerald-100',
+  },
+  '그램': {
+    bg: 'bg-gradient-to-br from-violet-600 to-violet-700',
+    text: 'text-violet-600',
+    border: 'border-violet-200',
+    light: 'bg-violet-50',
+    gradient: 'from-violet-50 via-violet-50 to-violet-100',
+  },
+  '이시스': {
+    bg: 'bg-gradient-to-br from-orange-600 to-orange-700',
+    text: 'text-orange-600',
+    border: 'border-orange-200',
+    light: 'bg-orange-50',
+    gradient: 'from-orange-50 via-orange-50 to-orange-100',
+  },
+  '엘루오': {
+    bg: 'bg-gradient-to-br from-rose-600 to-rose-700',
+    text: 'text-rose-600',
+    border: 'border-rose-200',
+    light: 'bg-rose-50',
+    gradient: 'from-rose-50 via-rose-50 to-rose-100',
+  },
+  '케이코스텍': {
+    bg: 'bg-gradient-to-br from-cyan-600 to-cyan-700',
+    text: 'text-cyan-600',
+    border: 'border-cyan-200',
+    light: 'bg-cyan-50',
+    gradient: 'from-cyan-50 via-cyan-50 to-cyan-100',
+  },
+  '다미': {
+    bg: 'bg-gradient-to-br from-amber-600 to-amber-700',
+    text: 'text-amber-600',
+    border: 'border-amber-200',
+    light: 'bg-amber-50',
+    gradient: 'from-amber-50 via-amber-50 to-amber-100',
+  },
+  '배정불가': {
+    bg: 'bg-gradient-to-br from-gray-500 to-gray-600',
+    text: 'text-gray-600',
+    border: 'border-gray-200',
+    light: 'bg-gray-50',
+    gradient: 'from-gray-50 via-gray-50 to-gray-100',
+  },
 };
 
 // 이동일 문자열을 Date로 파싱
@@ -529,63 +566,77 @@ export default function GanttChart() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-100">
-        <h2 className="text-lg font-semibold">생산계획표</h2>
-        <div className="flex items-center gap-4">
-          {/* 줌 컨트롤 */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={handleZoomOut}
-              disabled={zoomLevel === ZOOM_LEVELS[0]}
-              className="p-1.5 hover:bg-gray-200 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="축소"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-sm font-medium min-w-[45px] text-center">{zoomLevel}%</span>
-            <button
-              onClick={handleZoomIn}
-              disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-              className="p-1.5 hover:bg-gray-200 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="확대"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
+    <div className="bg-gradient-to-br from-white via-blue-50/20 to-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+      {/* 헤더 - 모던 디자인 */}
+      <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 px-6 py-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl shadow-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">📊</span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">생산 계획표</h2>
+              <p className="text-gray-300 text-sm mt-1">실시간 라인별 배정 현황 대시보드</p>
+            </div>
           </div>
-          
-          {/* 월 이동 */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrevMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="font-medium min-w-[120px] text-center">
-              {format(selectedMonth, 'yyyy년 M월', { locale: ko })}
-            </span>
-            <button
-              onClick={handleNextMonth}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+
+          <div className="flex items-center gap-6">
+            {/* 줌 컨트롤 */}
+            <div className="flex items-center gap-2 bg-gray-700/50 backdrop-blur rounded-xl p-2 border border-gray-600">
+              <button
+                onClick={handleZoomOut}
+                disabled={zoomLevel === ZOOM_LEVELS[0]}
+                className="p-2 hover:bg-gray-600 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all text-gray-300 hover:text-white"
+                title="축소"
+              >
+                <ZoomOut className="w-5 h-5" />
+              </button>
+              <span className="text-gray-200 font-semibold min-w-[50px] text-center text-sm">{zoomLevel}%</span>
+              <button
+                onClick={handleZoomIn}
+                disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+                className="p-2 hover:bg-gray-600 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all text-gray-300 hover:text-white"
+                title="확대"
+              >
+                <ZoomIn className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* 월 이동 */}
+            <div className="flex items-center gap-3 bg-gray-700/50 backdrop-blur rounded-xl px-4 py-2 border border-gray-600">
+              <button
+                onClick={handlePrevMonth}
+                className="p-2 hover:bg-gray-600 rounded-lg transition-all text-gray-300 hover:text-white"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="font-bold text-white min-w-[140px] text-center text-sm">
+                {format(selectedMonth, 'yyyy년 M월', { locale: ko })}
+              </span>
+              <button
+                onClick={handleNextMonth}
+                className="p-2 hover:bg-gray-600 rounded-lg transition-all text-gray-300 hover:text-white"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
       
-      {/* 간트 차트 */}
+      {/* 간트 차트 - 최신 디자인 */}
       <div className="overflow-x-auto max-h-[70vh]" ref={scrollRef} onScroll={handleScroll}>
         <div className="min-w-max" style={{ fontSize: `${zoomLevel}%` }}>
           {/* 날짜 헤더 */}
-          <div className="flex border-b border-gray-200 sticky top-0 bg-gray-50 z-20">
+          <div className="flex border-b-2 border-gray-200 sticky top-0 bg-gradient-to-r from-gray-50 to-gray-50 z-20 shadow-sm">
             <div 
-              className="flex-shrink-0 p-2 font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-30"
+              className="flex-shrink-0 p-4 font-bold text-gray-800 border-r-2 border-gray-200 bg-gradient-to-br from-gray-100 to-gray-50 sticky left-0 z-30 text-sm"
               style={{ width: `${fixedColumnWidth}px` }}
             >
-              외주처 / 라인
+              <div className="flex items-center gap-2">
+                <span className="w-1 h-4 rounded-full bg-gradient-to-b from-blue-500 to-blue-600"></span>
+                외주처 / 라인
+              </div>
             </div>
             {days.map((day, index) => {
               const isWeekendDay = day.getDay() === 0 || day.getDay() === 6;
@@ -594,14 +645,21 @@ export default function GanttChart() {
                 <div
                   key={index}
                   className={`
-                    flex-shrink-0 p-1 text-center border-r border-gray-200 ${fontSize}
-                    ${isWeekendDay ? 'bg-red-50' : 'bg-gray-50'}
-                    ${isTodayDate ? 'bg-blue-100 font-bold' : ''}
+                    flex-shrink-0 p-3 text-center border-r border-gray-200 ${fontSize} font-semibold
+                    transition-all duration-200
+                    ${isTodayDate 
+                      ? 'bg-gradient-to-b from-blue-100 to-blue-50 border-blue-300 shadow-md' 
+                      : isWeekendDay 
+                      ? 'bg-gradient-to-b from-red-50 to-red-50/30' 
+                      : 'bg-white hover:bg-gray-50'
+                    }
                   `}
                   style={{ width: `${cellWidth}px` }}
                 >
-                  <div className="font-medium">{format(day, 'd')}</div>
-                  <div className={`text-[10px] ${isWeekendDay ? 'text-red-500' : 'text-gray-400'}`}>
+                  <div className={`font-bold text-sm ${isTodayDate ? 'text-blue-700' : isWeekendDay ? 'text-red-600' : 'text-gray-800'}`}>
+                    {format(day, 'd')}
+                  </div>
+                  <div className={`text-xs font-medium mt-1 ${isTodayDate ? 'text-blue-600' : isWeekendDay ? 'text-red-500' : 'text-gray-500'}`}>
                     {format(day, 'EEE', { locale: ko })}
                   </div>
                 </div>
@@ -616,27 +674,30 @@ export default function GanttChart() {
             const vendor = vendors.find((v: Vendor) => v.name === vendorName);
             const lineCount = vendor?.lineCount || 1;
             const totalQty = items.reduce((sum: number, item: ProductionItem) => sum + item.quantity, 0);
+            const colorScheme = vendorColors[vendorName];
             
             return (
-              <div key={vendorName} className="border-b border-gray-200">
+              <div key={vendorName} className="border-b-2 border-gray-200">
                 {/* 외주처 헤더 */}
-                <div className="flex bg-gray-50">
+                <div className={`flex bg-gradient-to-r ${colorScheme.gradient} border-b border-gray-100`}>
                   <div 
-                    className="flex-shrink-0 p-2 border-r border-gray-200 bg-gray-50 sticky left-0 z-10"
+                    className={`flex-shrink-0 p-4 border-r-2 border-gray-200 ${colorScheme.light} sticky left-0 z-10`}
                     style={{ width: `${fixedColumnWidth}px` }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${vendorColors[vendorName] || 'bg-gray-400'}`} />
-                      <span className={`font-medium ${fontSize}`}>{vendorName}</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
-                      {items.length}건 / {totalQty.toLocaleString()}개
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${colorScheme.bg} shadow-lg`}></div>
+                      <div>
+                        <p className={`font-bold text-sm ${colorScheme.text}`}>{vendorName}</p>
+                        <p className="text-xs text-gray-600 mt-0.5 font-medium">
+                          {items.length}건 · {totalQty.toLocaleString()}개
+                        </p>
+                      </div>
                     </div>
                   </div>
                   {days.map((_, idx) => (
                     <div 
                       key={idx} 
-                      className="flex-shrink-0 border-r border-gray-200" 
+                      className={`flex-shrink-0 border-r border-gray-200 ${colorScheme.light} hover:opacity-80 transition-opacity`} 
                       style={{ width: `${cellWidth}px` }}
                     />
                   ))}
@@ -647,18 +708,18 @@ export default function GanttChart() {
                   const lineNumber = lineIdx + 1;
                   
                   return (
-                    <div key={lineIdx} className="flex hover:bg-gray-50">
+                    <div key={lineIdx} className="flex border-b border-gray-100 hover:bg-blue-50/30 transition-colors">
                       <div 
-                        className={`flex-shrink-0 p-1 pl-4 border-r border-gray-200 ${fontSize} text-gray-500 bg-white sticky left-0 z-10`}
+                        className={`flex-shrink-0 p-3 pl-6 border-r-2 border-gray-200 ${fontSize} font-semibold text-gray-700 bg-white sticky left-0 z-10 flex items-center gap-2`}
                         style={{ width: `${fixedColumnWidth}px` }}
                       >
+                        <span className="w-1 h-3 rounded-full bg-gray-300"></span>
                         라인 {lineNumber}
                       </div>
                       {days.map((day, dayIdx) => {
-                        // vendorLineSchedules에서 해당 날짜의 아이템 가져오기
                         const dateKey = format(day, 'yyyy-MM-dd');
                         const dayItems = vendorLineSchedules[vendorName]?.[lineNumber]?.[dateKey] || [];
-                        const minHeight = zoomLevel < 75 ? 40 : zoomLevel < 100 ? 50 : 60;
+                        const minHeight = zoomLevel < 75 ? 50 : zoomLevel < 100 ? 65 : 80;
                         const isDropTarget = dropTarget?.vendorName === vendorName && 
                                              dropTarget?.lineNumber === lineNumber && 
                                              dropTarget?.dateKey === dateKey;
@@ -668,10 +729,10 @@ export default function GanttChart() {
                           <div
                             key={dayIdx}
                             className={`
-                              flex-shrink-0 p-0.5 border-r border-gray-200 transition-colors
-                              ${isDropTarget ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}
-                              ${isWeekendDay ? 'bg-red-50/50' : ''}
-                              ${dragItem && !isWeekendDay ? 'hover:bg-blue-50' : ''}
+                              flex-shrink-0 p-2 border-r border-gray-200 transition-all
+                              ${isDropTarget ? `${colorScheme.light} ring-2 ${colorScheme.border} ring-inset shadow-inset` : ''}
+                              ${isWeekendDay ? 'bg-red-50/40' : 'bg-white'}
+                              ${dragItem && !isWeekendDay ? 'hover:bg-blue-100/50' : ''}
                             `}
                             style={{ width: `${cellWidth}px`, minHeight: `${minHeight}px` }}
                             onDragOver={(e) => {
@@ -700,28 +761,31 @@ export default function GanttChart() {
                                   }}
                                   onDragEnd={handleDragEnd}
                                   className={`
-                                    p-0.5 rounded mb-0.5 cursor-grab active:cursor-grabbing
-                                    border ${vendorBgColors[vendorName] || 'bg-gray-100 border-gray-300'}
-                                    hover:opacity-80 transition-opacity select-none
-                                    ${zoomLevel < 75 ? 'text-[8px]' : zoomLevel < 100 ? 'text-[10px]' : 'text-xs'}
-                                    ${dragItem?.item.productCode === dailyItem.item.productCode ? 'opacity-50 ring-2 ring-blue-400' : ''}
-                                    ${isFixed ? 'ring-1 ring-yellow-400' : ''}
+                                    p-2 rounded-lg mb-1.5 cursor-grab active:cursor-grabbing
+                                    ${colorScheme.bg} text-white
+                                    hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200
+                                    border-l-4 border-white/30
+                                    select-none font-semibold backdrop-blur-sm
+                                    ${zoomLevel < 75 ? 'text-[9px]' : zoomLevel < 100 ? 'text-[11px]' : 'text-xs'}
+                                    ${dragItem?.item.productCode === dailyItem.item.productCode ? 'opacity-60 ring-2 ring-yellow-300 ring-offset-1' : ''}
+                                    ${isFixed ? 'ring-2 ring-yellow-300 ring-offset-1' : ''}
                                   `}
-                                  title={isFixed ? '고정된 품목 (드래그하여 이동)' : '드래그하여 이동, 더블클릭하여 상세정보'}
+                                  title={isFixed ? '📌 고정됨 (드래그하여 재배치)' : '🖱️ 드래그하여 이동 | 더블클릭: 상세정보'}
                                   onDoubleClick={() => handleItemDoubleClick(dailyItem.item)}
                                 >
-                                  <div className="flex items-center gap-0.5">
-                                    <GripVertical className="w-2 h-2 text-gray-400 flex-shrink-0" />
-                                    <span className="font-medium truncate">
-                                      {dailyItem.item.productName.slice(0, nameLength)}..
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <GripVertical className="w-3 h-3 opacity-70 flex-shrink-0" />
+                                    <span className="font-bold truncate leading-tight">
+                                      {dailyItem.item.productName.slice(0, nameLength)}
                                     </span>
+                                    {isFixed && <span className="text-lg">📌</span>}
                                   </div>
-                                  <div className="text-gray-600">
-                                    {dailyItem.dailyQty.toLocaleString()}
+                                  <div className="text-white/90 font-bold text-xs">
+                                    {dailyItem.dailyQty.toLocaleString()}개
                                   </div>
                                   {dailyItem.totalDays > 1 && (
-                                    <div className="text-gray-400" style={{ fontSize: '8px' }}>
-                                      ({dailyItem.dayNumber}/{dailyItem.totalDays})
+                                    <div className="text-white/60 text-[8px] mt-0.5 font-medium">
+                                      Day {dailyItem.dayNumber}/{dailyItem.totalDays}
                                     </div>
                                   )}
                                 </div>
@@ -742,68 +806,70 @@ export default function GanttChart() {
       {/* 변경 확정 다이얼로그 */}
       {pendingChange && (
         <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={cancelChange}
         >
           <div 
-            className="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4"
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4 border border-gray-100 transform transition-all"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Check className="w-5 h-5 text-blue-600" />
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center border-2 border-blue-200">
+                <Check className="w-6 h-6 text-blue-600" />
               </div>
-              <h3 className="text-lg font-semibold">이대로 계획을 확정하시겠습니까?</h3>
+              <h3 className="text-xl font-bold text-gray-900">배치 계획 변경</h3>
             </div>
             
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-500 w-16">품목:</span>
-                <span className="font-medium">{pendingChange.item.productName}</span>
+            <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-5 space-y-3 border border-gray-200 mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 w-14">📦 품목</span>
+                <span className="font-bold text-gray-900">{pendingChange.item.productName}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-500 w-16">코드:</span>
-                <span className="font-mono text-sm">{pendingChange.item.productCode}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 w-14">📍 코드</span>
+                <span className="font-mono text-sm font-semibold text-gray-700">{pendingChange.item.productCode}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-500 w-16">수량:</span>
-                <span>{pendingChange.item.quantity.toLocaleString()}개</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 w-14">📊 수량</span>
+                <span className="font-bold text-lg text-gray-900">{pendingChange.item.quantity.toLocaleString()}개</span>
               </div>
+            </div>
               
-              <div className="border-t border-gray-200 pt-3 mt-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-red-50 rounded-lg p-3">
-                    <div className="text-xs text-red-500 font-medium mb-1">변경 전</div>
-                    <div className="text-sm font-medium">{pendingChange.from.vendor}</div>
-                    <div className="text-xs text-gray-600">라인 {pendingChange.from.line}</div>
-                    <div className="text-xs text-gray-600">{pendingChange.from.date}</div>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-3">
-                    <div className="text-xs text-green-500 font-medium mb-1">변경 후</div>
-                    <div className="text-sm font-medium">{pendingChange.to.vendor}</div>
-                    <div className="text-xs text-gray-600">라인 {pendingChange.to.line}</div>
-                    <div className="text-xs text-gray-600">{pendingChange.to.date}</div>
-                  </div>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gradient-to-br from-red-50 to-red-50/50 rounded-xl p-4 border-2 border-red-200">
+                <div className="text-xs font-bold text-red-600 mb-2">❌ 변경 전</div>
+                <div className="space-y-1">
+                  <p className="font-bold text-gray-900 text-sm">{pendingChange.from.vendor}</p>
+                  <p className="text-xs text-gray-600 font-medium">라인 {pendingChange.from.line}</p>
+                  <p className="text-xs text-gray-600 font-mono">{pendingChange.from.date}</p>
                 </div>
               </div>
-              
-              <p className="text-xs text-gray-500 mt-2">
-                * 확정하면 이 품목은 다음 엑셀 업로드 시에도 지정한 위치에 고정 배치됩니다.
-              </p>
+              <div className="bg-gradient-to-br from-green-50 to-green-50/50 rounded-xl p-4 border-2 border-green-200">
+                <div className="text-xs font-bold text-green-600 mb-2">✅ 변경 후</div>
+                <div className="space-y-1">
+                  <p className="font-bold text-gray-900 text-sm">{pendingChange.to.vendor}</p>
+                  <p className="text-xs text-gray-600 font-medium">라인 {pendingChange.to.line}</p>
+                  <p className="text-xs text-gray-600 font-mono">{pendingChange.to.date}</p>
+                </div>
+              </div>
             </div>
+              
+            <p className="text-xs text-gray-500 bg-blue-50 rounded-lg p-3 mb-6 border border-blue-200">
+              💡 <span className="font-medium">참고:</span> 이 품목은 다음 엑셀 업로드 시에도 지정한 위치에 고정 배치됩니다.
+            </p>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3">
               <button
                 onClick={cancelChange}
-                className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-bold"
               >
                 취소
               </button>
               <button
                 onClick={confirmChange}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all font-bold"
               >
-                변경
+                변경 확정
               </button>
             </div>
           </div>
@@ -813,66 +879,69 @@ export default function GanttChart() {
       {/* 품목 상세 모달 */}
       {selectedItem && (
         <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={closeModal}
         >
           <div 
-            className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4"
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border border-gray-100 transform transition-all"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">품목 상세정보</h3>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center border border-blue-200">
+                  <span className="text-lg">📦</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">상세 정보</h3>
+              </div>
               <button
                 onClick={closeModal}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm text-gray-500">제품코드</label>
-                <p className="font-mono font-medium text-gray-900">{selectedItem.productCode}</p>
+            <div className="space-y-4 mb-6">
+              <div className="bg-gradient-to-r from-blue-50 to-blue-50/50 rounded-xl p-4 border border-blue-100">
+                <label className="text-xs font-bold text-blue-600 mb-1 block">📍 제품 코드</label>
+                <p className="font-mono font-bold text-gray-900 text-sm">{selectedItem.productCode}</p>
               </div>
-              <div>
-                <label className="text-sm text-gray-500">제품명</label>
-                <p className="font-medium text-gray-900">{selectedItem.productName}</p>
+              <div className="bg-gradient-to-r from-purple-50 to-purple-50/50 rounded-xl p-4 border border-purple-100">
+                <label className="text-xs font-bold text-purple-600 mb-1 block">📦 제품명</label>
+                <p className="font-bold text-gray-900">{selectedItem.productName}</p>
               </div>
-              <div>
-                <label className="text-sm text-gray-500">수량</label>
-                <p className="font-medium text-gray-900 text-lg">{selectedItem.quantity.toLocaleString()}개</p>
+              <div className="bg-gradient-to-r from-green-50 to-green-50/50 rounded-xl p-4 border border-green-100">
+                <label className="text-xs font-bold text-green-600 mb-1 block">📊 수량</label>
+                <p className="font-bold text-gray-900 text-xl">{selectedItem.quantity.toLocaleString()}개</p>
               </div>
-              <div>
-                <label className="text-sm text-gray-500">납기</label>
-                <p className="font-medium text-gray-900">{selectedItem.deliveryDate || '-'}</p>
+              <div className="bg-gradient-to-r from-orange-50 to-orange-50/50 rounded-xl p-4 border border-orange-100">
+                <label className="text-xs font-bold text-orange-600 mb-1 block">📅 납기</label>
+                <p className="font-bold text-gray-900">{selectedItem.deliveryDate || '미정'}</p>
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <label className="text-gray-500">이동일</label>
-                  <p className="font-medium">{selectedItem.transferDate || '-'}</p>
-                </div>
-                <div>
-                  <label className="text-gray-500">외주처</label>
-                  <p className="font-medium">{selectedItem.assignedVendor || '-'}</p>
-                </div>
-                <div>
-                  <label className="text-gray-500">공정</label>
-                  <p className="font-medium">{selectedItem.processType || '-'}</p>
-                </div>
-                <div>
-                  <label className="text-gray-500">담당자</label>
-                  <p className="font-medium">{selectedItem.manager || '-'}</p>
-                </div>
+            <div className="grid grid-cols-2 gap-3 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1">이동일</label>
+                <p className="font-medium text-gray-900 text-sm">{selectedItem.transferDate || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1">외주처</label>
+                <p className="font-medium text-gray-900 text-sm">{selectedItem.assignedVendor || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1">공정</label>
+                <p className="font-medium text-gray-900 text-sm">{selectedItem.processType || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-600 block mb-1">담당자</label>
+                <p className="font-medium text-gray-900 text-sm">{selectedItem.manager || '-'}</p>
               </div>
             </div>
 
             <button
               onClick={closeModal}
-              className="mt-6 w-full py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+              className="w-full py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all font-bold"
             >
               닫기
             </button>

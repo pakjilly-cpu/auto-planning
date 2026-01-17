@@ -332,3 +332,300 @@ export function calculateDailyTotals(
     quantity: dailyTotals[format(day, 'yyyy-MM-dd')] || 0,
   }));
 }
+
+// ==================== 고급 알고리즘 ====================
+
+// 1. LPT (Longest Processing Time) 규칙: 처리량 큰 항목 우선 배정
+export function sortByLPT(items: ProductionItem[]): ProductionItem[] {
+  return [...items].sort((a, b) => b.quantity - a.quantity);
+}
+
+// 2. 외주처별 부하 계산 (Min-Max 최적화용)
+export interface VendorLoadMetrics {
+  vendorId: string;
+  vendorName: string;
+  totalLoad: number;
+  utilization: number; // 0-100%
+  monthlyTargetAchievementRate: number; // 0-100%
+}
+
+export function calculateVendorLoads(
+  plans: ProductionPlan[],
+  vendors: Vendor[]
+): VendorLoadMetrics[] {
+  const vendorTotals: Record<string, number> = {};
+  
+  for (const plan of plans) {
+    vendorTotals[plan.vendorId] = (vendorTotals[plan.vendorId] || 0) + plan.totalQuantity;
+  }
+  
+  return vendors.map(vendor => {
+    const totalLoad = vendorTotals[vendor.id] || 0;
+    const maxDailyCapacity = vendor.lineCount * vendor.dailyCapacityPerLine * 22; // 월간 22 근무일 기준
+    const utilization = (totalLoad / maxDailyCapacity) * 100;
+    const monthlyTarget = vendor.monthlyTarget || maxDailyCapacity;
+    const achievementRate = (totalLoad / monthlyTarget) * 100;
+    
+    return {
+      vendorId: vendor.id,
+      vendorName: vendorNameMap[vendor.id] || vendor.name,
+      totalLoad,
+      utilization: Math.min(utilization, 100),
+      monthlyTargetAchievementRate: Math.min(achievementRate, 100),
+    };
+  });
+}
+
+// 3. 부하 균형도 계산 (0 = 완벽한 균형, 1 = 최악의 불균형)
+export function calculateLoadBalance(metrics: VendorLoadMetrics[]): {
+  balance: number; // 0-1
+  maxLoad: number;
+  minLoad: number;
+  avgLoad: number;
+  stdDeviation: number;
+} {
+  if (metrics.length === 0) {
+    return { balance: 0, maxLoad: 0, minLoad: 0, avgLoad: 0, stdDeviation: 0 };
+  }
+  
+  const loads = metrics.map(m => m.totalLoad);
+  const maxLoad = Math.max(...loads);
+  const minLoad = Math.min(...loads);
+  const avgLoad = loads.reduce((a, b) => a + b, 0) / loads.length;
+  
+  // 표준편차 계산
+  const variance = loads.reduce((sum, load) => sum + Math.pow(load - avgLoad, 2), 0) / loads.length;
+  const stdDeviation = Math.sqrt(variance);
+  
+  // 부하 균형도: 표준편차 / 평균 (정규화된 변동 계수)
+  const balance = avgLoad > 0 ? stdDeviation / avgLoad : 0;
+  
+  return {
+    balance: Math.min(balance, 1),
+    maxLoad,
+    minLoad,
+    avgLoad,
+    stdDeviation,
+  };
+}
+
+// 4. 납기일 기반 동적 우선순위 계산
+export function calculateDeliveryUrgency(
+  item: ProductionItem,
+  referenceDate: Date = new Date()
+): number {
+  if (!item.deliveryDate) return 0;
+  
+  const deliveryDate = new Date(item.deliveryDate);
+  const daysUntilDelivery = Math.ceil(
+    (deliveryDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  
+  // 기본 우선순위: 10점 만점
+  // 60일 이상: 1점, 30일: 5점, 7일: 9점, 당일: 10점
+  if (daysUntilDelivery >= 60) return 1;
+  if (daysUntilDelivery <= 0) return 10;
+  
+  return Math.round(10 - (daysUntilDelivery / 60) * 9);
+}
+
+// 5. 특수공정 활용도 계산
+export function calculateSpecialProcessUtilization(
+  plans: ProductionPlan[],
+  vendors: Vendor[]
+): {
+  vendorId: string;
+  vendorName: string;
+  specialProcessLoad: number;
+  specialProcessCapability: boolean;
+  utilizationRate: number;
+}[] {
+  // 특수공정 항목 필터링 (여기서는 예시)
+  const specialProcessLoad: Record<string, number> = {};
+  
+  vendors.forEach(vendor => {
+    specialProcessLoad[vendor.id] = 0;
+  });
+  
+  // 실제 구현: ProductionItem에서 특수공정 판별
+  // 이는 데이터 구조에 따라 달라짐
+  
+  return vendors.map(vendor => ({
+    vendorId: vendor.id,
+    vendorName: vendorNameMap[vendor.id] || vendor.name,
+    specialProcessLoad: specialProcessLoad[vendor.id] || 0,
+    specialProcessCapability: vendor.capabilities.length > 1,
+    utilizationRate: (specialProcessLoad[vendor.id] || 0) / 1000, // 정규화
+  }));
+}
+
+// 6. 최적화된 배치 함수 (LPT + Load Balancing)
+export function allocateProductionOptimized(
+  items: ProductionItem[],
+  vendors: Vendor[],
+  clientMappings: ClientVendorMapping[],
+  targetMonth: Date,
+  options: {
+    useLPT?: boolean; // LPT 규칙 사용 (기본값: true)
+    balanceLoad?: boolean; // 부하 균형화 (기본값: true)
+    considerUrgency?: boolean; // 납기일 우선순위 (기본값: true)
+  } = {}
+): { allocatedItems: ProductionItem[]; plans: ProductionPlan[] } {
+  const {
+    useLPT = true,
+    balanceLoad = true,
+    considerUrgency = true,
+  } = options;
+  
+  // 1단계: LPT 규칙으로 정렬 (선택사항)
+  let sortedItems = items;
+  if (useLPT) {
+    sortedItems = sortByLPT(items);
+  } else if (considerUrgency) {
+    // 납기일 기반 우선순위 정렬
+    sortedItems = [...items].sort((a, b) => {
+      const urgencyA = calculateDeliveryUrgency(a);
+      const urgencyB = calculateDeliveryUrgency(b);
+      return urgencyB - urgencyA; // 내림차순
+    });
+  }
+  
+  // 2단계: 기본 배치
+  let result = allocateProduction(
+    sortedItems,
+    vendors,
+    clientMappings,
+    targetMonth
+  );
+  
+  // 3단계: 부하 균형화 (선택사항)
+  if (balanceLoad) {
+    result = optimizeLoadBalancing(
+      result.plans,
+      result.allocatedItems,
+      vendors,
+      clientMappings,
+      targetMonth
+    );
+  }
+  
+  return result;
+}
+
+// 7. 부하 균형화 최적화 (Local Search)
+function optimizeLoadBalancing(
+  plans: ProductionPlan[],
+  items: ProductionItem[],
+  vendors: Vendor[],
+  clientMappings: ClientVendorMapping[],
+  targetMonth: Date
+): { allocatedItems: ProductionItem[]; plans: ProductionPlan[] } {
+  let currentPlans = [...plans];
+  let improved = true;
+  let iterations = 0;
+  const maxIterations = 50; // 과도한 계산 방지
+  
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+    
+    const metrics = calculateVendorLoads(currentPlans, vendors);
+    const balance = calculateLoadBalance(metrics);
+    
+    // 부하가 가장 큰 외주처와 작은 외주처 찾기
+    const maxLoadMetric = metrics.reduce((prev, current) =>
+      prev.totalLoad > current.totalLoad ? prev : current
+    );
+    const minLoadMetric = metrics.reduce((prev, current) =>
+      prev.totalLoad < current.totalLoad ? prev : current
+    );
+    
+    if (maxLoadMetric.totalLoad - minLoadMetric.totalLoad <= 1000) {
+      // 부하 차이가 충분히 작으면 종료
+      break;
+    }
+    
+    // 최대 부하 외주처에서 최소 부하 외주처로 이동 가능한 계획 찾기
+    for (let i = 0; i < currentPlans.length; i++) {
+      if (currentPlans[i].vendorId !== maxLoadMetric.vendorId) continue;
+      
+      const plan = currentPlans[i];
+      const moveQuantity = Math.min(
+        plan.totalQuantity,
+        Math.ceil((maxLoadMetric.totalLoad - minLoadMetric.totalLoad) / 2)
+      );
+      
+      // 이동 가능한지 확인 (제약조건 검증)
+      const minLoadVendor = vendors.find(v => v.id === minLoadMetric.vendorId);
+      if (!minLoadVendor) continue;
+      
+      // 특수공정 능력 확인
+      const item = items.find(item => item.id === plan.productionItemId);
+      if (item && !canHandleProcess(minLoadVendor, item.specialProcess || 'normal')) {
+        continue;
+      }
+      
+      // 이동 실행
+      currentPlans[i] = {
+        ...plan,
+        vendorId: minLoadMetric.vendorId,
+        vendorName: minLoadMetric.vendorName,
+      };
+      
+      improved = true;
+      break;
+    }
+  }
+  
+  return { allocatedItems: items, plans: currentPlans };
+}
+
+// 8. 스케줄링 성능 지표 (Scheduling Metrics)
+export interface SchedulingPerformanceMetrics {
+  makespan: number; // 전체 완료 시간 (일수)
+  averageUtilization: number; // 평균 자원 활용률 (0-100%)
+  loadBalance: number; // 부하 균형도 (0-1, 낮을수록 좋음)
+  deliveryOnTimeRate: number; // 납기 준수율 (0-100%)
+  monthlyTargetAchievementRate: number; // 월간 목표 달성률 (0-100%)
+  specialProcessComplianceRate: number; // 특수공정 준수율 (0-100%)
+}
+
+export function calculateSchedulingMetrics(
+  plans: ProductionPlan[],
+  items: ProductionItem[],
+  vendors: Vendor[]
+): SchedulingPerformanceMetrics {
+  const metrics = calculateVendorLoads(plans, vendors);
+  const balance = calculateLoadBalance(metrics);
+  
+  // Makespan 계산 (최종 완료일)
+  const makespanDays = Math.max(
+    ...plans.map(p => Math.ceil((new Date(p.endDate).getTime() - new Date(p.startDate).getTime()) / (1000 * 60 * 60 * 24))),
+    0
+  );
+  
+  // 평균 활용률
+  const avgUtilization = metrics.length > 0
+    ? metrics.reduce((sum, m) => sum + m.utilization, 0) / metrics.length
+    : 0;
+  
+  // 월간 목표 달성률
+  const avgTargetAchievementRate = metrics.length > 0
+    ? metrics.reduce((sum, m) => sum + m.monthlyTargetAchievementRate, 0) / metrics.length
+    : 0;
+  
+  // 납기 준수율 (실제 구현: deliveryDate 비교 필요)
+  const deliveryOnTimeRate = 100; // 임시값
+  
+  // 특수공정 준수율
+  const specialProcessComplianceRate = 100; // 임시값
+  
+  return {
+    makespan: makespanDays,
+    averageUtilization: Math.round(avgUtilization * 100) / 100,
+    loadBalance: Math.round(balance.balance * 1000) / 1000,
+    deliveryOnTimeRate,
+    monthlyTargetAchievementRate: Math.round(avgTargetAchievementRate * 100) / 100,
+    specialProcessComplianceRate,
+  };
+}

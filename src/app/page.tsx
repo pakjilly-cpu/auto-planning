@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Download, Settings2, RefreshCw, Trash2 } from 'lucide-react';
 import ExcelUpload from '@/components/ExcelUpload';
+import PerformanceMetrics from '@/components/PerformanceMetrics';
 import StatCards from '@/components/StatCards';
 import GanttChart from '@/components/GanttChart';
 import VendorChart from '@/components/VendorChart';
@@ -10,7 +11,11 @@ import ClientMapping from '@/components/ClientMapping';
 import VendorSettings from '@/components/VendorSettings';
 import { useAppStore } from '@/lib/store';
 import { exportToExcel } from '@/lib/excel';
-import { allocateProduction } from '@/lib/allocation';
+import { 
+  allocateProduction,
+  allocateProductionOptimized,
+  calculateSchedulingMetrics 
+} from '@/lib/allocation';
 
 export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
@@ -18,6 +23,8 @@ export default function Home() {
     productionItems,
     setProductionItems,
     setProductionPlans,
+    schedulingMetrics,
+    setSchedulingMetrics,
     vendors,
     clientMappings,
     selectedMonth,
@@ -41,8 +48,12 @@ export default function Home() {
       selectedMonth
     );
     
+    // 성능 지표 계산
+    const metrics = calculateSchedulingMetrics(plans, allocatedItems, vendors);
+    
     setProductionItems(allocatedItems);
     setProductionPlans(plans);
+    setSchedulingMetrics(metrics);
   };
 
   // 엑셀 내보내기
@@ -56,52 +67,59 @@ export default function Home() {
     if (confirm('업로드한 데이터를 삭제하시겠습니까?')) {
       setProductionItems([]);
       setProductionPlans([]);
+      setSchedulingMetrics(null);
     }
   };
 
   return (
-    <div className="min-h-screen">
-      {/* 헤더 */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <h1 className="text-xl font-bold text-gray-900">
-              외주처 생산계획 자동화
-            </h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50">
+      {/* 헤더 - 모던 디자인 */}
+      <header className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b-2 border-blue-500 sticky top-0 z-50 shadow-xl">
+        <div className="max-w-screen-2xl mx-auto px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl shadow-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xl">📊</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">생산 계획 자동 배정</h1>
+                <p className="text-gray-300 text-sm mt-0.5">학술 알고리즘 기반 최적화 시스템</p>
+              </div>
+            </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {productionItems.length > 0 && (
                 <>
                   <button
                     onClick={handleClear}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-red-600 bg-white/80 backdrop-blur border-2 border-red-200 rounded-xl hover:bg-red-50 hover:shadow-lg transition-all hover:-translate-y-0.5"
                   >
                     <Trash2 className="w-4 h-4" />
                     삭제
                   </button>
                   <button
                     onClick={handleReAllocate}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-gray-700 bg-white/80 backdrop-blur border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:shadow-lg transition-all hover:-translate-y-0.5"
                   >
                     <RefreshCw className="w-4 h-4" />
                     재배분
                   </button>
                   <button
                     onClick={handleExport}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl hover:shadow-lg transition-all hover:-translate-y-0.5"
                   >
                     <Download className="w-4 h-4" />
-                    엑셀 다운로드
+                    엑셀 내보내기
                   </button>
                 </>
               )}
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`
-                  flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors
+                  flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl transition-all hover:shadow-lg hover:-translate-y-0.5
                   ${showSettings 
-                    ? 'text-white bg-blue-600 hover:bg-blue-700' 
-                    : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                    ? 'text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg' 
+                    : 'text-white bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700'
                   }
                 `}
               >
@@ -114,21 +132,21 @@ export default function Home() {
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-8">
         {/* 로딩 오버레이 */}
         {isLoading && (
-          <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 shadow-xl flex items-center gap-3">
-              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-              <span className="font-medium">처리 중...</span>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 shadow-2xl flex items-center gap-4 border border-gray-100">
+              <RefreshCw className="w-7 h-7 animate-spin text-blue-600" />
+              <span className="font-bold text-lg text-gray-900">처리 중...</span>
             </div>
           </div>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* 설정 패널 */}
           {showSettings && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
               <ClientMapping />
               <VendorSettings />
             </div>
@@ -136,6 +154,22 @@ export default function Home() {
 
           {/* 엑셀 업로드 */}
           <ExcelUpload />
+
+          {/* 성능 지표 */}
+          {productionItems.length > 0 && (
+            <div className="bg-gradient-to-br from-white to-blue-50/30 rounded-2xl shadow-lg border border-gray-100 p-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center border border-blue-200">
+                  <span className="text-xl">📊</span>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">스케줄링 성능 지표</h2>
+              </div>
+              <PerformanceMetrics 
+                metrics={schedulingMetrics} 
+                isLoading={isLoading}
+              />
+            </div>
+          )}
 
           {/* 통계 카드 */}
           <StatCards />

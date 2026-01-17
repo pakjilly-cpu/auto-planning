@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Vendor, ClientVendorMapping, ProductionItem, ProductionPlan } from './types';
+import { SchedulingPerformanceMetrics } from './allocation';
 import { defaultVendors, defaultClientMappings } from '@/data/defaults';
 
 // 수기 고정된 배치 정보
@@ -30,6 +31,10 @@ interface AppState {
   // 생산 계획 (배분 결과)
   productionPlans: ProductionPlan[];
   setProductionPlans: (plans: ProductionPlan[]) => void;
+  
+  // 스케줄링 성능 지표
+  schedulingMetrics: SchedulingPerformanceMetrics | null;
+  setSchedulingMetrics: (metrics: SchedulingPerformanceMetrics | null) => void;
   
   // 선택된 월
   selectedMonth: Date;
@@ -86,6 +91,10 @@ export const useAppStore = create<AppState>()(
       // 생산 계획
       productionPlans: [],
       setProductionPlans: (plans) => set({ productionPlans: plans }),
+      
+      // 스케줄링 성능 지표
+      schedulingMetrics: null,
+      setSchedulingMetrics: (metrics) => set({ schedulingMetrics: metrics }),
       
       // 선택된 월
       selectedMonth: new Date(),
