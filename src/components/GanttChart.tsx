@@ -364,9 +364,10 @@ export default function GanttChart() {
     // 주말 제외 근무일만 필터링
     const workingDays = days.filter(day => !isWeekend(day));
     
-    // 모든 외주처에 대해 스케줄 초기화
+    // 모든 외주처에 대해 스케줄 초기화 (하드코딩 + 실제 데이터의 외주처 병합)
     const vendorOrder = ['위드맘', '리니어', '그램', '이시스', '엘루오', '케이코스텍', '다미', '배정불가'];
-    vendorOrder.forEach(vendorName => {
+    const allVendors = new Set([...vendorOrder, ...Object.keys(groupedByVendor)]);
+    allVendors.forEach(vendorName => {
       const vendor = vendors.find((v: Vendor) => v.name === vendorName);
       const lineCount = vendor?.lineCount || 1;
       
@@ -523,7 +524,7 @@ export default function GanttChart() {
           const remainingQty = item.quantity - (dayOffset * dailyCapa);
           const dailyQty = Math.min(remainingQty, dailyCapa);
           
-          if (schedules[vendorName][currentLine][dateKey]) {
+          if (schedules[vendorName]?.[currentLine]?.[dateKey]) {
             schedules[vendorName][currentLine][dateKey].push({
               item,
               dailyQty,
@@ -531,7 +532,7 @@ export default function GanttChart() {
               totalDays,
             });
             // 점유된 날짜로 마킹
-            lineOccupiedDays[currentLine].add(dateKey);
+            lineOccupiedDays[currentLine]?.add(dateKey);
           }
         }
         
@@ -754,40 +755,82 @@ export default function GanttChart() {
                               return (
                                 <div
                                   key={itemIdx}
-                                  draggable
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.effectAllowed = 'move';
-                                    handleDragStart(dailyItem.item, vendorName, lineNumber, dateKey);
-                                  }}
-                                  onDragEnd={handleDragEnd}
-                                  className={`
-                                    p-2 rounded-lg mb-1.5 cursor-grab active:cursor-grabbing
-                                    ${colorScheme.bg} text-white
-                                    hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200
-                                    border-l-4 border-white/30
-                                    select-none font-semibold backdrop-blur-sm
-                                    ${zoomLevel < 75 ? 'text-[9px]' : zoomLevel < 100 ? 'text-[11px]' : 'text-xs'}
-                                    ${dragItem?.item.productCode === dailyItem.item.productCode ? 'opacity-60 ring-2 ring-yellow-300 ring-offset-1' : ''}
-                                    ${isFixed ? 'ring-2 ring-yellow-300 ring-offset-1' : ''}
-                                  `}
-                                  title={isFixed ? '📌 고정됨 (드래그하여 재배치)' : '🖱️ 드래그하여 이동 | 더블클릭: 상세정보'}
-                                  onDoubleClick={() => handleItemDoubleClick(dailyItem.item)}
+                                  className="relative group"
                                 >
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <GripVertical className="w-3 h-3 opacity-70 flex-shrink-0" />
-                                    <span className="font-bold truncate leading-tight">
-                                      {dailyItem.item.productName.slice(0, nameLength)}
-                                    </span>
-                                    {isFixed && <span className="text-lg">📌</span>}
-                                  </div>
-                                  <div className="text-white/90 font-bold text-xs">
-                                    {dailyItem.dailyQty.toLocaleString()}개
-                                  </div>
-                                  {dailyItem.totalDays > 1 && (
-                                    <div className="text-white/60 text-[8px] mt-0.5 font-medium">
-                                      Day {dailyItem.dayNumber}/{dailyItem.totalDays}
+                                  <div
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.effectAllowed = 'move';
+                                      handleDragStart(dailyItem.item, vendorName, lineNumber, dateKey);
+                                    }}
+                                    onDragEnd={handleDragEnd}
+                                    className={`
+                                      p-2 rounded-lg mb-1.5 cursor-grab active:cursor-grabbing
+                                      ${colorScheme.bg} text-white
+                                      hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200
+                                      border-l-4 border-white/30
+                                      select-none font-semibold backdrop-blur-sm
+                                      ${zoomLevel < 75 ? 'text-[9px]' : zoomLevel < 100 ? 'text-[11px]' : 'text-xs'}
+                                      ${dragItem?.item.productCode === dailyItem.item.productCode ? 'opacity-60 ring-2 ring-yellow-300 ring-offset-1' : ''}
+                                      ${isFixed ? 'ring-2 ring-yellow-300 ring-offset-1' : ''}
+                                    `}
+                                    onDoubleClick={() => handleItemDoubleClick(dailyItem.item)}
+                                  >
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <GripVertical className="w-3 h-3 opacity-70 flex-shrink-0" />
+                                      <span className="font-bold truncate leading-tight">
+                                        {dailyItem.item.productName.slice(0, nameLength)}
+                                      </span>
+                                      {isFixed && <span className="text-lg">📌</span>}
                                     </div>
-                                  )}
+                                    <div className="text-white/90 font-bold text-xs">
+                                      {dailyItem.dailyQty.toLocaleString()}개
+                                    </div>
+                                    {dailyItem.totalDays > 1 && (
+                                      <div className="text-white/60 text-[8px] mt-0.5 font-medium">
+                                        Day {dailyItem.dayNumber}/{dailyItem.totalDays}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* 호버 툴팁 */}
+                                  <div className="absolute left-full top-0 ml-2 z-50 hidden group-hover:block pointer-events-none">
+                                    <div className="bg-gray-900 text-white text-xs rounded-lg shadow-lg p-2.5 whitespace-nowrap min-w-[180px]">
+                                      <div className="font-semibold text-sm mb-1.5 text-blue-300">{dailyItem.item.productName}</div>
+                                      <div className="space-y-1 text-gray-200">
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">제품코드</span>
+                                          <span className="font-mono">{dailyItem.item.productCode}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">총 수량</span>
+                                          <span>{dailyItem.item.quantity.toLocaleString()}개</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">오늘 생산</span>
+                                          <span className="text-green-400">{dailyItem.dailyQty.toLocaleString()}개</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">납기</span>
+                                          <span>{dailyItem.item.deliveryDate}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                          <span className="text-gray-400">이동일</span>
+                                          <span>{dailyItem.item.transferDate}일</span>
+                                        </div>
+                                        {dailyItem.totalDays > 1 && (
+                                          <div className="flex justify-between gap-4 pt-1 border-t border-gray-700">
+                                            <span className="text-gray-400">생산 진행</span>
+                                            <span className="text-yellow-400">{dailyItem.dayNumber}일차 / {dailyItem.totalDays}일</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {isFixed && (
+                                        <div className="mt-2 pt-1.5 border-t border-gray-700 text-yellow-400 text-[10px]">
+                                          📌 고정 배치된 품목
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}
